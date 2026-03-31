@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* e-MedCof 2025 — cores e tipografia do Brandbook (Vermelhof, cOffBlack, C(of)inza, Inter) */
 @theme {
   --font-sans:
@@ -17,6 +19,16 @@
   --shadow-brand-glow: 0 4px 24px rgba(226, 38, 60, 0.12);
   --radius-xl: 1rem;
   --radius-2xl: 1.25rem;
+}
+
+.dark {
+  --color-ink: #ededf0;
+  --color-ink-muted: #8b8b96;
+  --color-ink-subtle: #5c5c68;
+  --color-surface: #111113;
+  --color-card: #1c1d20;
+  --color-border: rgba(237, 237, 240, 0.08);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.4);
 }
 
 html {

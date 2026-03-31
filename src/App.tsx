@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { AppWorkspaceProvider } from './context/AppWorkspaceContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { CreatePage } from './pages/CreatePage'
 import { DashboardPage } from './pages/DashboardPage'
 import { CompetitorsPage } from './pages/CompetitorsPage'
@@ -16,6 +17,7 @@ import { TrendsPage } from './pages/TrendsPage'
 function App() {
   return (
     <BrowserRouter>
+      <ThemeProvider>
       <AppWorkspaceProvider>
         <Routes>
           <Route element={<AppLayout />}>
@@ -39,6 +41,7 @@ function App() {
           </Route>
         </Routes>
       </AppWorkspaceProvider>
+      </ThemeProvider>
     </BrowserRouter>
   )
 }
