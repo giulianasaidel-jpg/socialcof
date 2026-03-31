@@ -7,6 +7,8 @@ import { CompetitorsPage } from './pages/CompetitorsPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SchedulePage } from './pages/SchedulePage'
 import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
+import { MedicalNewsPage } from './pages/MedicalNewsPage'
+import { TrendsPage } from './pages/TrendsPage'
 
 /**
  * Rotas do protótipo de alta fidelidade SocialCof.
@@ -26,6 +28,8 @@ function App() {
             />
             <Route path="produtos" element={<ProductsPage />} />
             <Route path="agenda" element={<SchedulePage />} />
+            <Route path="trends" element={<TrendsPage />} />
+            <Route path="noticias-medicas" element={<MedicalNewsPage />} />
             <Route path="admin" element={<AdminOverviewPage />} />
             <Route
               path="admin/instagram"

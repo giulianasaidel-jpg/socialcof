@@ -91,13 +91,13 @@ export function AdminOverviewPage() {
   return (
     <div className="space-y-10">
       <header>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6e6e73]">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
           Administração
         </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[#1d1d1f]">
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">
           Acessos ao portal
         </h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#6e6e73]">
+        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">
           Defina quem entra pelo e-mail e quais contas Instagram cada pessoa
           pode usar no {brandLine}. Alterações ficam só neste navegador
           (protótipo sem backend).
@@ -105,10 +105,10 @@ export function AdminOverviewPage() {
       </header>
 
       <section className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-        <h2 className="text-lg font-semibold tracking-tight text-[#1d1d1f]">
+        <h2 className="text-lg font-semibold tracking-tight text-ink">
           Conceder acesso por e-mail
         </h2>
-        <p className="mt-1 text-[13px] text-[#6e6e73]">
+        <p className="mt-1 text-[13px] text-ink-muted">
           Novo usuário aparece na lista abaixo; em seguida marque as contas
           Instagram liberadas para ele.
         </p>
@@ -119,7 +119,7 @@ export function AdminOverviewPage() {
           <div className="min-w-0 flex-1">
             <label
               htmlFor="admin-new-email"
-              className="text-sm font-medium text-[#1d1d1f]"
+              className="text-sm font-medium text-ink"
             >
               E-mail
             </label>
@@ -132,13 +132,13 @@ export function AdminOverviewPage() {
                 setNewEmail(e.target.value)
                 setFormError('')
               }}
-              className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+              className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               placeholder="nome@empresa.com.br"
             />
           </div>
           <button
             type="submit"
-            className="rounded-full bg-[#0071e3] px-6 py-3 text-[15px] font-medium text-white hover:bg-[#0077ed] active:scale-[0.98]"
+            className="rounded-full bg-brand px-6 py-3 text-[15px] font-medium text-white hover:bg-brand-hover active:scale-[0.98]"
           >
             Adicionar
           </button>
@@ -149,11 +149,11 @@ export function AdminOverviewPage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold tracking-tight text-[#1d1d1f]">
+        <h2 className="mb-4 text-lg font-semibold tracking-tight text-ink">
           Usuários e contas permitidas
         </h2>
         {users.length === 0 ? (
-          <p className="rounded-xl border border-black/[0.06] bg-[#fafafa] px-4 py-6 text-[14px] text-[#6e6e73]">
+          <p className="rounded-xl border border-black/[0.06] bg-[#fafafa] px-4 py-6 text-[14px] text-ink-muted">
             Nenhum usuário. Adicione um e-mail acima.
           </p>
         ) : (
@@ -165,10 +165,10 @@ export function AdminOverviewPage() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/[0.06] pb-4">
                   <div>
-                    <p className="text-[15px] font-semibold text-[#1d1d1f]">
+                    <p className="text-[15px] font-semibold text-ink">
                       {u.email}
                     </p>
-                    <p className="mt-1 text-[13px] text-[#6e6e73]">
+                    <p className="mt-1 text-[13px] text-ink-muted">
                       {u.allowedInstagramAccountIds.length === 0
                         ? 'Nenhuma conta Instagram selecionada — o usuário não verá contas no app.'
                         : `${u.allowedInstagramAccountIds.length} conta(s) liberada(s)`}
@@ -183,7 +183,7 @@ export function AdminOverviewPage() {
                   </button>
                 </div>
                 <fieldset className="mt-5">
-                  <legend className="text-[11px] font-semibold uppercase tracking-wide text-[#6e6e73]">
+                  <legend className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                     Contas Instagram ({brandLine})
                   </legend>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -197,7 +197,7 @@ export function AdminOverviewPage() {
                           className={[
                             'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-[14px] transition',
                             checked
-                              ? 'border-[#0071e3]/40 bg-[#0071e3]/5'
+                              ? 'border-brand/40 bg-brand/5'
                               : 'border-black/[0.08] bg-[#fafafa] hover:border-black/[0.12]',
                           ].join(' ')}
                         >
@@ -205,13 +205,13 @@ export function AdminOverviewPage() {
                             type="checkbox"
                             checked={checked}
                             onChange={() => toggleAccount(u.id, acc.id)}
-                            className="h-4 w-4 rounded border-black/[0.2] text-[#0071e3] focus:ring-[#0071e3]"
+                            className="h-4 w-4 rounded border-black/[0.2] text-brand focus:ring-brand"
                           />
                           <span className="min-w-0">
-                            <span className="font-medium text-[#1d1d1f]">
+                            <span className="font-medium text-ink">
                               {acc.displayName}
                             </span>
-                            <span className="block text-[12px] text-[#6e6e73]">
+                            <span className="block text-[12px] text-ink-muted">
                               @{acc.handle}
                             </span>
                           </span>

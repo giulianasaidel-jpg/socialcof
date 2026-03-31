@@ -220,10 +220,10 @@ export function CompetitorsPage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-[#1d1d1f]">
+        <h1 className="text-3xl font-semibold tracking-tight text-ink">
           Concorrência
         </h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#6e6e73]">
+        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">
           Escolha uma das suas contas Instagram ({brandLine}). Inclua perfis
           concorrentes abaixo; os do protótipo continuam listados quando
           existirem para a conta.
@@ -233,11 +233,11 @@ export function CompetitorsPage() {
       <div className="rounded-2xl border border-black/[0.08] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
         <label
           htmlFor="concorrencia-conta"
-          className="text-sm font-semibold text-[#1d1d1f]"
+          className="text-sm font-semibold text-ink"
         >
           Sua conta Instagram
         </label>
-        <p className="mt-1 text-[13px] text-[#6e6e73]">
+        <p className="mt-1 text-[13px] text-ink-muted">
           Concorrentes manuais ficam guardados por conta e por linha (produtos
           ou médicos).
         </p>
@@ -245,7 +245,7 @@ export function CompetitorsPage() {
           id="concorrencia-conta"
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
-          className="mt-4 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+          className="mt-4 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         >
           {instagramAccounts.map((a) => (
             <option key={a.id} value={a.id}>
@@ -254,8 +254,8 @@ export function CompetitorsPage() {
           ))}
         </select>
         {selectedAccount ? (
-          <p className="mt-3 text-[13px] text-[#6e6e73]">
-            <span className="font-medium text-[#1d1d1f]">
+          <p className="mt-3 text-[13px] text-ink-muted">
+            <span className="font-medium text-ink">
               {selectedAccount.displayName}
             </span>{' '}
             —{' '}
@@ -265,7 +265,7 @@ export function CompetitorsPage() {
               href={selectedAccount.profileUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#0071e3] hover:underline"
+              className="text-brand hover:underline"
             >
               Abrir perfil
             </a>
@@ -274,10 +274,10 @@ export function CompetitorsPage() {
       </div>
 
       <section className="rounded-2xl border border-black/[0.08] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-        <h2 className="text-sm font-semibold text-[#1d1d1f]">
+        <h2 className="text-sm font-semibold text-ink">
           Adicionar Instagram da concorrência
         </h2>
-        <p className="mt-1 text-[13px] text-[#6e6e73]">
+        <p className="mt-1 text-[13px] text-ink-muted">
           Cole o @ do perfil ou o link completo (ex.: instagram.com/usuario).
         </p>
         <form
@@ -298,13 +298,13 @@ export function CompetitorsPage() {
                 setNewIgInput(e.target.value)
                 setAddError('')
               }}
-              className="w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+              className="w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               placeholder="@concorrente ou https://www.instagram.com/concorrente/"
             />
           </div>
           <button
             type="submit"
-            className="rounded-full bg-[#0071e3] px-6 py-3 text-[15px] font-medium text-white hover:bg-[#0077ed] active:scale-[0.98]"
+            className="rounded-full bg-brand px-6 py-3 text-[15px] font-medium text-white hover:bg-brand-hover active:scale-[0.98]"
           >
             Adicionar
           </button>
@@ -331,14 +331,14 @@ export function CompetitorsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/[0.06] pb-4">
                   <div>
                     {c.isManual ? (
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#0071e3]">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">
                         Adicionado por você
                       </p>
                     ) : null}
-                    <h2 className="mt-0.5 text-lg font-semibold text-[#1d1d1f]">
+                    <h2 className="mt-0.5 text-lg font-semibold text-ink">
                       {c.displayName}
                     </h2>
-                    <p className="text-[14px] text-[#6e6e73]">@{c.handle}</p>
+                    <p className="text-[14px] text-ink-muted">@{c.handle}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {c.isManual ? (
@@ -354,7 +354,7 @@ export function CompetitorsPage() {
                       href={c.profileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-full border border-black/[0.1] px-3 py-1.5 text-[12px] font-medium text-[#1d1d1f] hover:bg-black/[0.04]"
+                      className="rounded-full border border-black/[0.1] px-3 py-1.5 text-[12px] font-medium text-ink hover:bg-black/[0.04]"
                     >
                       Ver no Instagram
                     </a>
@@ -363,20 +363,20 @@ export function CompetitorsPage() {
 
                 <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="rounded-xl bg-[#f5f5f7] px-3 py-2.5">
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-[#6e6e73]">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                       Seguidores
                     </dt>
-                    <dd className="mt-1 text-[15px] font-semibold tabular-nums text-[#1d1d1f]">
+                    <dd className="mt-1 text-[15px] font-semibold tabular-nums text-ink">
                       {c.followers != null
                         ? c.followers.toLocaleString('pt-BR')
                         : '—'}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-[#f5f5f7] px-3 py-2.5">
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-[#6e6e73]">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                       Engajamento
                     </dt>
-                    <dd className="mt-1 text-[15px] font-semibold tabular-nums text-[#1d1d1f]">
+                    <dd className="mt-1 text-[15px] font-semibold tabular-nums text-ink">
                       {c.engagementRatePct != null
                         ? `${c.engagementRatePct.toLocaleString('pt-BR', {
                             minimumFractionDigits: 1,
@@ -386,20 +386,20 @@ export function CompetitorsPage() {
                     </dd>
                   </div>
                   <div className="rounded-xl bg-[#f5f5f7] px-3 py-2.5">
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-[#6e6e73]">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                       Média de curtidas
                     </dt>
-                    <dd className="mt-1 text-[15px] font-semibold tabular-nums text-[#1d1d1f]">
+                    <dd className="mt-1 text-[15px] font-semibold tabular-nums text-ink">
                       {c.avgLikesPerPost != null
                         ? c.avgLikesPerPost.toLocaleString('pt-BR')
                         : '—'}
                     </dd>
                   </div>
                   <div className="rounded-xl bg-[#f5f5f7] px-3 py-2.5">
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-[#6e6e73]">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                       Posts no perfil
                     </dt>
-                    <dd className="mt-1 text-[15px] font-semibold tabular-nums text-[#1d1d1f]">
+                    <dd className="mt-1 text-[15px] font-semibold tabular-nums text-ink">
                       {c.publishedPostsCount != null
                         ? c.publishedPostsCount.toLocaleString('pt-BR')
                         : '—'}
@@ -409,7 +409,7 @@ export function CompetitorsPage() {
 
                 <div className="mt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6e6e73]">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                       O que funciona no perfil deles — copie para o seu
                     </p>
                     <button
@@ -421,7 +421,7 @@ export function CompetitorsPage() {
                           setTimeout(() => setCopiedKey(null), 2000)
                         }
                       }}
-                      className="rounded-full bg-[#1d1d1f] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-black"
+                      className="rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-white hover:bg-ink/90"
                     >
                       {copiedKey === `${c.id}-all` ? 'Copiado!' : 'Copiar todos'}
                     </button>
@@ -432,7 +432,7 @@ export function CompetitorsPage() {
                       return (
                         <li
                           key={key}
-                          className="flex gap-2 rounded-xl border border-black/[0.06] bg-[#fafafa] p-3 text-[14px] leading-relaxed text-[#1d1d1f]"
+                          className="flex gap-2 rounded-xl border border-black/[0.06] bg-[#fafafa] p-3 text-[14px] leading-relaxed text-ink"
                         >
                           <span className="min-w-0 flex-1">{line}</span>
                           <button
@@ -444,7 +444,7 @@ export function CompetitorsPage() {
                                 setTimeout(() => setCopiedKey(null), 2000)
                               }
                             }}
-                            className="shrink-0 self-start rounded-lg border border-black/[0.08] px-2 py-1 text-[11px] font-medium text-[#0071e3] hover:bg-[#0071e3]/10"
+                            className="shrink-0 self-start rounded-lg border border-black/[0.08] px-2 py-1 text-[11px] font-medium text-brand hover:bg-brand/10"
                           >
                             {copiedKey === key ? 'OK' : 'Copiar'}
                           </button>

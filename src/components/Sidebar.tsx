@@ -9,6 +9,8 @@ const navItems: NavItem[] = [
   { to: '/concorrencia', label: 'Concorrência' },
   { to: '/produtos', label: 'Produtos' },
   { to: '/agenda', label: 'Agenda' },
+  { to: '/trends', label: 'Trends' },
+  { to: '/noticias-medicas', label: 'Notícias médicas' },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -23,42 +25,74 @@ export function Sidebar() {
     useAppWorkspace()
 
   return (
-    <aside className="flex w-[260px] shrink-0 flex-col border-r border-black/[0.06] bg-white/80 px-4 py-6 backdrop-blur-xl">
+    <aside className="flex w-[260px] shrink-0 flex-col border-r border-ink/10 bg-white/70 px-4 py-6 shadow-[4px_0_32px_rgba(28,29,32,0.06)] backdrop-blur-2xl">
       <div
-        className="mb-6 flex flex-col gap-1 rounded-xl border border-black/[0.08] bg-[#fafafa] p-1"
+        className="mb-5 overflow-hidden rounded-3xl bg-[#e8e8ed] p-px shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)]"
         role="group"
         aria-label="Linha Social Cof"
       >
-        <button
-          type="button"
-          onClick={() => setWorkspaceId('socialcof')}
-          className={[
-            'w-full rounded-lg px-2 py-2 text-left text-[10px] font-semibold leading-tight transition',
-            workspaceId === 'socialcof'
-              ? 'bg-[#0071e3] text-white'
-              : 'text-[#6e6e73] hover:bg-white',
-          ].join(' ')}
-        >
-          Social Cof — produtos
-        </button>
-        <button
-          type="button"
-          onClick={() => setWorkspaceId('diretoria-medica')}
-          className={[
-            'w-full rounded-lg px-2 py-2 text-left text-[10px] font-semibold leading-tight transition',
-            workspaceId === 'diretoria-medica'
-              ? 'bg-[#0071e3] text-white'
-              : 'text-[#6e6e73] hover:bg-white',
-          ].join(' ')}
-        >
-          Social Cof — médicos
-        </button>
+        <div className="flex gap-px">
+          <button
+            type="button"
+            onClick={() => setWorkspaceId('socialcof')}
+            className={[
+              'flex min-h-[34px] flex-1 flex-col items-center justify-center rounded-[23px] px-1 py-1 text-center transition-all duration-200',
+              workspaceId === 'socialcof'
+                ? 'bg-brand text-white shadow-sm'
+                : 'text-ink-muted hover:bg-white/60 hover:text-ink',
+            ].join(' ')}
+          >
+            <span
+              className={[
+                'text-[8px] font-medium leading-none',
+                workspaceId === 'socialcof' ? 'text-white/90' : 'opacity-65',
+              ].join(' ')}
+            >
+              Social Cof
+            </span>
+            <span
+              className={[
+                'mt-px text-[10px] font-semibold leading-none tracking-tight',
+                workspaceId === 'socialcof' ? 'text-white' : '',
+              ].join(' ')}
+            >
+              Produtos
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setWorkspaceId('diretoria-medica')}
+            className={[
+              'flex min-h-[34px] flex-1 flex-col items-center justify-center rounded-[23px] px-1 py-1 text-center transition-all duration-200',
+              workspaceId === 'diretoria-medica'
+                ? 'bg-brand text-white shadow-sm'
+                : 'text-ink-muted hover:bg-white/60 hover:text-ink',
+            ].join(' ')}
+          >
+            <span
+              className={[
+                'text-[8px] font-medium leading-none',
+                workspaceId === 'diretoria-medica' ? 'text-white/90' : 'opacity-65',
+              ].join(' ')}
+            >
+              Social Cof
+            </span>
+            <span
+              className={[
+                'mt-px text-[10px] font-semibold leading-none tracking-tight',
+                workspaceId === 'diretoria-medica' ? 'text-white' : '',
+              ].join(' ')}
+            >
+              Médicos
+            </span>
+          </button>
+        </div>
       </div>
       <div className="mb-8 px-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6e6e73]">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
           {brandShortName}
         </p>
-        <p className="mt-0.5 text-lg font-semibold tracking-tight text-[#1d1d1f]">
+        <p className="mt-0.5 text-lg font-semibold tracking-tight text-ink">
           {brandSubtitle}
         </p>
       </div>
@@ -73,8 +107,8 @@ export function Sidebar() {
                 [
                   'rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors',
                   isActive
-                    ? 'bg-[#0071e3]/10 text-[#0071e3]'
-                    : 'text-[#1d1d1f] hover:bg-black/[0.04]',
+                    ? 'bg-brand/10 text-brand'
+                    : 'text-ink hover:bg-ink/[0.04]',
                 ].join(' ')
               }
             >
@@ -83,7 +117,7 @@ export function Sidebar() {
           ))}
         </div>
         <div>
-          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#6e6e73]">
+          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
             Administração
           </p>
           <div className="flex flex-col gap-0.5">
@@ -96,8 +130,8 @@ export function Sidebar() {
                   [
                     'rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors',
                     isActive
-                      ? 'bg-[#0071e3]/10 text-[#0071e3]'
-                      : 'text-[#1d1d1f] hover:bg-black/[0.04]',
+                      ? 'bg-brand/10 text-brand'
+                      : 'text-ink hover:bg-ink/[0.04]',
                   ].join(' ')
                 }
               >
@@ -108,9 +142,9 @@ export function Sidebar() {
         </div>
       </nav>
       <div className="mt-auto">
-        <div className="rounded-2xl border border-black/[0.06] bg-[#f5f5f7] p-4">
-          <p className="text-xs font-medium text-[#6e6e73]">Modo protótipo</p>
-          <p className="mt-1 text-[13px] leading-snug text-[#1d1d1f]">
+        <div className="rounded-2xl border border-ink/10 bg-surface/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+          <p className="text-xs font-medium text-ink-muted">Modo protótipo</p>
+          <p className="mt-1 text-[13px] leading-snug text-ink">
             Dados fictícios para validar fluxos com o time.
           </p>
         </div>

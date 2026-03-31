@@ -97,21 +97,21 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <label className="block text-[13px] font-medium text-[#6e6e73]">
+        <label className="block text-[13px] font-medium text-ink-muted">
           Horário
           <input
             type="time"
             value={entry.time}
             onChange={(ev) => onPatch({ time: ev.target.value })}
-            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </label>
-        <label className="block text-[13px] font-medium text-[#6e6e73]">
+        <label className="block text-[13px] font-medium text-ink-muted">
           Formato do post
           <select
             value={entry.format}
             onChange={(ev) => onPatch({ format: ev.target.value })}
-            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           >
             {['Carrossel', 'Reels', 'Estático', 'Stories', 'Live'].map((f) => (
               <option key={f} value={f}>
@@ -120,14 +120,14 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
             ))}
           </select>
         </label>
-        <label className="block text-[13px] font-medium text-[#6e6e73]">
+        <label className="block text-[13px] font-medium text-ink-muted">
           Status
           <select
             value={entry.status}
             onChange={(ev) =>
               onPatch({ status: ev.target.value as ScheduleEntryStatus })
             }
-            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           >
             {STATUS_OPTIONS.map((st) => (
               <option key={st} value={st}>
@@ -137,33 +137,33 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
           </select>
         </label>
       </div>
-      <label className="block text-[13px] font-medium text-[#6e6e73]">
+      <label className="block text-[13px] font-medium text-ink-muted">
         Tema
         <input
           type="text"
           value={entry.theme}
           onChange={(ev) => onPatch({ theme: ev.target.value })}
-          className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+          className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           placeholder="Ex.: Dica de estudo — cardiologia"
         />
       </label>
-      <label className="block text-[13px] font-medium text-[#6e6e73]">
+      <label className="block text-[13px] font-medium text-ink-muted">
         Conteúdo
         <textarea
           value={entry.content}
           onChange={(ev) => onPatch({ content: ev.target.value })}
           rows={3}
-          className="mt-1.5 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] leading-relaxed text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+          className="mt-1.5 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           placeholder="Resumo do que será publicado…"
         />
       </label>
-      <label className="block text-[13px] font-medium text-[#6e6e73]">
+      <label className="block text-[13px] font-medium text-ink-muted">
         Legenda
         <textarea
           value={entry.caption}
           onChange={(ev) => onPatch({ caption: ev.target.value })}
           rows={3}
-          className="mt-1.5 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] leading-relaxed text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+          className="mt-1.5 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           placeholder="Texto previsto para a publicação"
         />
       </label>
@@ -247,10 +247,10 @@ export function SchedulePage() {
   return (
     <div className="space-y-10">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-[#1d1d1f]">
+        <h1 className="text-3xl font-semibold tracking-tight text-ink">
           Agenda
         </h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#6e6e73]">
+        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">
           Visão mensal por conta Instagram ({brandLine}): cada linha é uma
           semana. Clique em um dia para editar horário, tema, conteúdo, formato,
           legenda e status.
@@ -261,7 +261,7 @@ export function SchedulePage() {
         <div className="min-w-[240px] max-w-md flex-1">
           <label
             htmlFor="sched-ig-account"
-            className="text-sm font-medium text-[#1d1d1f]"
+            className="text-sm font-medium text-ink"
           >
             Conta Instagram
           </label>
@@ -272,7 +272,7 @@ export function SchedulePage() {
               setScheduleAccountId(e.target.value)
               setSelectedDate(null)
             }}
-            className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20"
+            className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           >
             {instagramAccounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -285,17 +285,17 @@ export function SchedulePage() {
           <button
             type="button"
             onClick={goPrevMonth}
-            className="rounded-full border border-black/[0.12] bg-white px-4 py-2 text-[14px] font-medium text-[#1d1d1f] hover:bg-black/[0.03]"
+            className="rounded-full border border-black/[0.12] bg-white px-4 py-2 text-[14px] font-medium text-ink hover:bg-black/[0.03]"
           >
             Mês anterior
           </button>
-          <span className="min-w-[160px] text-center text-[15px] font-semibold capitalize text-[#1d1d1f]">
+          <span className="min-w-[160px] text-center text-[15px] font-semibold capitalize text-ink">
             {formatMonthTitle(year, monthIndex)}
           </span>
           <button
             type="button"
             onClick={goNextMonth}
-            className="rounded-full border border-black/[0.12] bg-white px-4 py-2 text-[14px] font-medium text-[#1d1d1f] hover:bg-black/[0.03]"
+            className="rounded-full border border-black/[0.12] bg-white px-4 py-2 text-[14px] font-medium text-ink hover:bg-black/[0.03]"
           >
             Próximo mês
           </button>
@@ -303,9 +303,9 @@ export function SchedulePage() {
       </section>
 
       {selectedScheduleAccount && (
-        <p className="text-[14px] text-[#6e6e73]">
+        <p className="text-[14px] text-ink-muted">
           Cronograma de{' '}
-          <strong className="text-[#1d1d1f]">
+          <strong className="text-ink">
             @{selectedScheduleAccount.handle}
           </strong>{' '}
           ({selectedScheduleAccount.displayName})
@@ -316,13 +316,13 @@ export function SchedulePage() {
         <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
           <thead>
             <tr className="border-b border-black/[0.06] bg-[#fafafa]">
-              <th className="w-10 px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-[#6e6e73]">
+              <th className="w-10 px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
                 #
               </th>
               {WEEKDAY_HEADERS.map((h) => (
                 <th
                   key={h}
-                  className="px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-[#6e6e73]"
+                  className="px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-ink-muted"
                 >
                   {h}
                 </th>
@@ -335,7 +335,7 @@ export function SchedulePage() {
                 key={wi}
                 className="border-b border-black/[0.06] last:border-0 align-top"
               >
-                <td className="border-r border-black/[0.04] px-2 py-2 text-center text-[12px] font-medium text-[#86868b]">
+                <td className="border-r border-black/[0.04] px-2 py-2 text-center text-[12px] font-medium text-ink-subtle">
                   S{wi + 1}
                 </td>
                 {week.map((dateISO, di) => {
@@ -359,7 +359,7 @@ export function SchedulePage() {
                       key={dateISO}
                       className={[
                         'min-h-[100px] max-w-[140px] border-l border-black/[0.04] p-1 align-top',
-                        isSel ? 'bg-[#0071e3]/8' : '',
+                        isSel ? 'bg-brand/8' : '',
                       ].join(' ')}
                     >
                       <button
@@ -368,19 +368,19 @@ export function SchedulePage() {
                         className={[
                           'flex w-full flex-col rounded-xl p-2 text-left transition',
                           isSel
-                            ? 'ring-2 ring-[#0071e3]'
+                            ? 'ring-2 ring-brand'
                             : 'hover:bg-black/[0.03]',
                         ].join(' ')}
                       >
-                        <span className="text-[15px] font-semibold tabular-nums text-[#1d1d1f]">
+                        <span className="text-[15px] font-semibold tabular-nums text-ink">
                           {dayNumFromIso(dateISO)}
                         </span>
                         {hasContent ? (
                           <>
-                            <span className="mt-1 line-clamp-2 text-[11px] text-[#6e6e73]">
+                            <span className="mt-1 line-clamp-2 text-[11px] text-ink-muted">
                               {e.time} · {e.format}
                             </span>
-                            <span className="line-clamp-2 text-[11px] font-medium text-[#1d1d1f]">
+                            <span className="line-clamp-2 text-[11px] font-medium text-ink">
                               {e.theme || 'Sem tema'}
                             </span>
                             <span
@@ -389,15 +389,15 @@ export function SchedulePage() {
                                 e.status === 'Publicado'
                                   ? 'bg-emerald-500/15 text-emerald-800'
                                   : e.status === 'Agendado'
-                                    ? 'bg-[#0071e3]/15 text-[#0071e3]'
-                                    : 'bg-[#f5f5f7] text-[#6e6e73]',
+                                    ? 'bg-brand/15 text-brand'
+                                    : 'bg-[#f5f5f7] text-ink-muted',
                               ].join(' ')}
                             >
                               {e.status}
                             </span>
                           </>
                         ) : (
-                          <span className="mt-1 text-[11px] text-[#86868b]">
+                          <span className="mt-1 text-[11px] text-ink-subtle">
                             Clique para planejar
                           </span>
                         )}
@@ -414,13 +414,13 @@ export function SchedulePage() {
       {selectedDate && selectedEntry && scheduleAccountId ? (
         <section className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold capitalize text-[#1d1d1f]">
+            <h2 className="text-lg font-semibold capitalize text-ink">
               Editar dia — {formatWeekdayLong(selectedDate)}
             </h2>
             <button
               type="button"
               onClick={() => setSelectedDate(null)}
-              className="text-[13px] font-medium text-[#0071e3] hover:underline"
+              className="text-[13px] font-medium text-brand hover:underline"
             >
               Fechar
             </button>
@@ -433,7 +433,7 @@ export function SchedulePage() {
           />
         </section>
       ) : (
-        <p className="text-[14px] text-[#6e6e73]">
+        <p className="text-[14px] text-ink-muted">
           Selecione um dia no calendário para editar o cronograma.
         </p>
       )}
