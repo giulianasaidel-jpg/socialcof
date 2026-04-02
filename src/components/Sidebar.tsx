@@ -7,6 +7,7 @@ type NavItem = { to: string; label: string; end?: boolean }
 const navItems: NavItem[] = [
   { to: '/', label: 'Visão geral', end: true },
   { to: '/criar', label: 'Novo conteúdo' },
+  { to: '/rascunhos', label: 'Rascunhos' },
   { to: '/concorrencia', label: 'Concorrência' },
   { to: '/produtos', label: 'Produtos' },
   { to: '/agenda', label: 'Agenda' },

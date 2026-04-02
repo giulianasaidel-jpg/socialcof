@@ -9,6 +9,7 @@ import { CompetitorsPage } from './pages/CompetitorsPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SchedulePage } from './pages/SchedulePage'
 import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
+import { DraftsPage } from './pages/DraftsPage'
 import { MedicalNewsPage } from './pages/MedicalNewsPage'
 import { TrendsPage } from './pages/TrendsPage'
 import { LoginPage } from './pages/LoginPage'
@@ -54,6 +55,7 @@ function App() {
             >
               <Route index element={<DashboardPage />} />
               <Route path="criar" element={<CreatePage />} />
+              <Route path="rascunhos" element={<DraftsPage />} />
               <Route path="concorrencia" element={<CompetitorsPage />} />
               <Route
                 path="biblioteca"

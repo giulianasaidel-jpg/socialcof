@@ -7,7 +7,29 @@ import {
   readPrefillPayload,
   type CreatePagePrefill,
 } from '../services/createPrefill'
+import { fetchMedicalNews, type MedicalNewsItem } from '../services/discovery'
 import { api } from '../lib/api'
+
+const TEMPLATE_OPTIONS = [
+  { value: 'twitter-quote', label: 'Card de citação (Twitter)', contentType: 'Post' as const },
+  { value: 'carousel-tips', label: 'Carrossel — dicas numeradas', contentType: 'Carrossel' as const },
+  { value: 'carousel-numbered', label: 'Carrossel — passo a passo', contentType: 'Carrossel' as const },
+  { value: 'carousel-before-after', label: 'Carrossel — antes e depois', contentType: 'Carrossel' as const },
+  { value: 'carousel-story', label: 'Carrossel — narrativa', contentType: 'Carrossel' as const },
+  { value: 'static-announcement', label: 'Post estático — anúncio', contentType: 'Post' as const },
+]
+
+/**
+ * Mapeia erros da API de geração para mensagens amigáveis.
+ */
+function parseGenerateError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (msg.includes('MedicalNews not found')) return 'Notícia não encontrada no banco.'
+  if (msg.includes('Failed to fetch source content'))
+    return 'Não foi possível acessar a URL informada. Verifique se ela é pública e tente novamente.'
+  if (msg.includes('Generation failed')) return 'Erro ao gerar conteúdo com IA. Tente novamente.'
+  return msg || 'Erro ao gerar rascunho. Tente novamente.'
+}
 
 type ReferencePost = {
   id: string
@@ -25,7 +47,10 @@ type Draft = {
   title: string
   type: string
   status: string
-  updatedAt: string
+  updatedAt?: string
+  createdAt?: string
+  generatedAt?: string
+  caption?: string
 }
 
 /**
@@ -235,9 +260,16 @@ export function CreatePage() {
   const [referencePosts, setReferencePosts] = useState<ReferencePost[]>([])
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [draftsLoading, setDraftsLoading] = useState(true)
-  const [contentType, setContentType] = useState<'Post' | 'Carrossel'>(
-    'Carrossel',
-  )
+  const [templateType, setTemplateType] = useState('carousel-tips')
+  const [tone, setTone] = useState('')
+  const [slideCount, setSlideCount] = useState(5)
+  const [sourceType, setSourceType] = useState<'none' | 'url' | 'news'>('none')
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [sourceNewsId, setSourceNewsId] = useState('')
+  const [medicalNews, setMedicalNews] = useState<MedicalNewsItem[]>([])
+  const [medicalNewsLoading, setMedicalNewsLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
   const [seoCaption, setSeoCaption] = useState('')
   const [seoPrimaryKeyword, setSeoPrimaryKeyword] = useState('')
   const [seoSecondaryTerms, setSeoSecondaryTerms] = useState('')
@@ -283,6 +315,46 @@ export function CreatePage() {
       .catch(() => setDrafts([]))
       .finally(() => setDraftsLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (sourceType !== 'news') return
+    setMedicalNewsLoading(true)
+    fetchMedicalNews()
+      .then(setMedicalNews)
+      .catch(() => setMedicalNews([]))
+      .finally(() => setMedicalNewsLoading(false))
+  }, [sourceType])
+
+  const contentType =
+    TEMPLATE_OPTIONS.find((t) => t.value === templateType)?.contentType ?? 'Carrossel'
+
+  async function handleGenerate() {
+    setGenerating(true)
+    setGenerateError(null)
+    const accountHandle = targetAccount?.handle ?? instagramAccounts[0]?.handle ?? ''
+    const product = products.find((p) => p.id === productId)
+    const body: Record<string, unknown> = {
+      accountId: accountHandle,
+      productId: product?.slug ?? productId,
+      templateType,
+      topic: postBriefing.trim(),
+      ...(tone.trim() ? { tone: tone.trim() } : {}),
+      ...(contentType === 'Carrossel' ? { slideCount } : {}),
+      ...(seoCaption.trim() ? { referenceCaption: seoCaption.trim() } : {}),
+      ...(url.trim() ? { basedOnUrl: url.trim() } : {}),
+      ...(sourceType === 'url' && sourceUrl.trim() ? { sourceUrl: sourceUrl.trim() } : {}),
+      ...(sourceType === 'news' && sourceNewsId ? { sourceNewsId } : {}),
+    }
+    try {
+      const draft = await api.post<Draft>('/drafts/generate', body)
+      setDrafts((prev) => [draft, ...prev])
+      if (draft.caption) setSeoCaption(draft.caption)
+    } catch (err) {
+      setGenerateError(parseGenerateError(err))
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const matchedRef = referencePosts.find(
     (r) => r.instagramUrl === url.trim(),
@@ -479,25 +551,141 @@ export function CreatePage() {
               </select>
             </div>
             <div>
-              <p className="text-sm font-medium text-ink">Tipo de peça</p>
-              <div className="mt-2 flex gap-2">
-                {(['Post', 'Carrossel'] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setContentType(t)}
-                    className={[
-                      'flex-1 rounded-xl border px-4 py-3 text-[15px] font-medium transition',
-                      contentType === t
-                        ? 'border-brand bg-brand/10 text-brand'
-                        : 'border-ink/[0.08] bg-surface text-ink hover:border-ink/[0.12]',
-                    ].join(' ')}
-                  >
-                    {t}
-                  </button>
+              <label htmlFor="template-type" className="text-sm font-medium text-ink">
+                Formato
+              </label>
+              <select
+                id="template-type"
+                value={templateType}
+                onChange={(e) => setTemplateType(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none ring-brand focus:border-brand focus:ring-2 focus:ring-brand/20"
+              >
+                {TEMPLATE_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <label htmlFor="tone-input" className="text-sm font-medium text-ink">
+                Tom (opcional)
+              </label>
+              <input
+                id="tone-input"
+                type="text"
+                value={tone}
+                onChange={(e) => setTone(e.target.value)}
+                placeholder="Ex.: educativo, empático, direto"
+                className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none ring-brand focus:border-brand focus:ring-2 focus:ring-brand/20"
+              />
+            </div>
+            {contentType === 'Carrossel' && (
+              <div>
+                <label htmlFor="slide-count" className="text-sm font-medium text-ink">
+                  Número de slides
+                </label>
+                <input
+                  id="slide-count"
+                  type="number"
+                  min={2}
+                  max={15}
+                  value={slideCount}
+                  onChange={(e) =>
+                    setSlideCount(Math.max(2, Math.min(15, Number(e.target.value))))
+                  }
+                  className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none ring-brand focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-ink/[0.06] bg-surface p-6">
+            <h3 className="text-sm font-semibold text-ink">Fonte do conteúdo (opcional)</h3>
+            <p className="mt-1 text-[13px] text-ink-muted">
+              O GPT usará o conteúdo da fonte para embasar a geração de legenda, hashtags e slides.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(
+                [
+                  { value: 'none', label: 'Nenhuma fonte' },
+                  { value: 'url', label: 'URL' },
+                  { value: 'news', label: 'Notícia salva' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSourceType(opt.value)}
+                  className={[
+                    'rounded-full border px-4 py-2 text-[14px] font-medium transition',
+                    sourceType === opt.value
+                      ? 'border-brand bg-brand/10 text-brand'
+                      : 'border-ink/[0.1] bg-card text-ink-muted hover:text-ink',
+                  ].join(' ')}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {sourceType === 'url' && (
+              <div className="mt-4">
+                <label htmlFor="source-url" className="text-[13px] font-medium text-ink">
+                  Cole a URL da notícia ou site
+                </label>
+                <input
+                  id="source-url"
+                  type="url"
+                  value={sourceUrl}
+                  onChange={(e) => setSourceUrl(e.target.value)}
+                  placeholder="https://www.sanarmed.com/..."
+                  className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-card px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+              </div>
+            )}
+
+            {sourceType === 'news' && (
+              <div className="mt-4">
+                <label htmlFor="source-news" className="text-[13px] font-medium text-ink">
+                  Selecionar notícia
+                </label>
+                {medicalNewsLoading ? (
+                  <div className="mt-2 h-12 animate-pulse rounded-xl bg-ink/[0.06]" />
+                ) : (
+                  <select
+                    id="source-news"
+                    value={sourceNewsId}
+                    onChange={(e) => setSourceNewsId(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-card px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  >
+                    <option value="">Escolha uma notícia…</option>
+                    {medicalNews.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.title} — {n.source} (
+                        {new Date(n.publishedAt).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                        })}
+                        )
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {sourceNewsId &&
+                  (() => {
+                    const selected = medicalNews.find((n) => n.id === sourceNewsId)
+                    return selected ? (
+                      <p className="mt-2 rounded-xl border border-ink/[0.06] bg-card px-4 py-3 text-[13px] leading-relaxed text-ink-muted">
+                        {selected.summary}
+                      </p>
+                    ) : null
+                  })()}
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
@@ -810,6 +998,12 @@ export function CreatePage() {
             )}
           </div>
 
+          {generateError && (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-900 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
+              {generateError}
+            </p>
+          )}
+
           <div className="flex flex-wrap justify-between gap-3">
             <button
               type="button"
@@ -820,9 +1014,18 @@ export function CreatePage() {
             </button>
             <button
               type="button"
-              className="rounded-full bg-brand px-6 py-2.5 text-[15px] font-medium text-white hover:bg-brand-hover active:scale-[0.98]"
+              disabled={generating}
+              onClick={() => void handleGenerate()}
+              className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-2.5 text-[15px] font-medium text-white hover:bg-brand-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Abrir editor (protótipo)
+              {generating ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  Gerando…
+                </>
+              ) : (
+                'Gerar rascunho com IA'
+              )}
             </button>
           </div>
         </section>
@@ -859,7 +1062,9 @@ export function CreatePage() {
                   </p>
                   <p className="mt-0.5 text-[12px] text-ink-muted">
                     {d.type} · Atualizado em{' '}
-                    {new Date(d.updatedAt).toLocaleDateString('pt-BR', {
+                    {new Date(
+                      d.updatedAt ?? d.createdAt ?? d.generatedAt ?? '',
+                    ).toLocaleDateString('pt-BR', {
                       day: '2-digit',
                       month: 'short',
                       year: 'numeric',
