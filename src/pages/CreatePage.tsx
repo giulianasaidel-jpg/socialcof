@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useAppWorkspace } from '../context/AppWorkspaceContext'
-import { referencePosts } from '../data/mock'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   clearPrefillPayload,
@@ -8,6 +7,26 @@ import {
   readPrefillPayload,
   type CreatePagePrefill,
 } from '../services/createPrefill'
+import { api } from '../lib/api'
+
+type ReferencePost = {
+  id: string
+  productId: string
+  instagramUrl: string
+  title: string
+  format?: string
+  likes?: number
+  comments?: number
+}
+
+type Draft = {
+  id: string
+  productId: string
+  title: string
+  type: string
+  status: string
+  updatedAt: string
+}
 
 /**
  * Monta hashtags simples a partir de termos (protótipo SEO).
@@ -205,14 +224,17 @@ export function CreatePage() {
     useAppWorkspace()
   const brandLine = `${brandShortName} · ${brandSubtitle}`
   const [targetAccountId, setTargetAccountId] = useState(
-    instagramAccounts[0].id,
+    instagramAccounts[0]?.id ?? '',
   )
   const [postBriefing, setPostBriefing] = useState(
     readInitialPostBriefingFromStorage,
   )
-  const [url, setUrl] = useState('https://instagram.com/p/ABC123ficticio')
+  const [url, setUrl] = useState('')
   const [referenceVideoUrl, setReferenceVideoUrl] = useState('')
-  const [productId, setProductId] = useState(products[0].id)
+  const [productId, setProductId] = useState(products[0]?.id ?? '')
+  const [referencePosts, setReferencePosts] = useState<ReferencePost[]>([])
+  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [draftsLoading, setDraftsLoading] = useState(true)
   const [contentType, setContentType] = useState<'Post' | 'Carrossel'>(
     'Carrossel',
   )
@@ -244,6 +266,23 @@ export function CreatePage() {
     const clearTimer = window.setTimeout(() => clearPrefillPayload(), 450)
     return () => window.clearTimeout(clearTimer)
   }, [location.state, instagramAccounts, products, navigate])
+
+  useEffect(() => {
+    if (!productId) return
+    api
+      .get<ReferencePost[]>(`/reference-posts?productId=${productId}`)
+      .then(setReferencePosts)
+      .catch(() => setReferencePosts([]))
+  }, [productId])
+
+  useEffect(() => {
+    setDraftsLoading(true)
+    api
+      .get<Draft[]>('/drafts')
+      .then(setDrafts)
+      .catch(() => setDrafts([]))
+      .finally(() => setDraftsLoading(false))
+  }, [])
 
   const matchedRef = referencePosts.find(
     (r) => r.instagramUrl === url.trim(),
@@ -294,8 +333,8 @@ export function CreatePage() {
       </div>
 
       {step === 1 && (
-        <section className="rounded-2xl border border-black/[0.06] bg-white p-8 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-          <div className="border-b border-black/[0.06] pb-8">
+        <section className="rounded-2xl border border-ink/[0.06] bg-card p-8 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+          <div className="border-b border-ink/[0.06] pb-8">
             <label
               htmlFor="target-account"
               className="text-sm font-medium text-ink"
@@ -310,7 +349,7 @@ export function CreatePage() {
               id="target-account"
               value={targetAccountId}
               onChange={(e) => setTargetAccountId(e.target.value)}
-              className="mt-3 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none ring-brand focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="mt-3 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none ring-brand focus:border-brand focus:ring-2 focus:ring-brand/20"
             >
               {instagramAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -344,12 +383,12 @@ export function CreatePage() {
               value={postBriefing}
               onChange={(e) => setPostBriefing(e.target.value)}
               rows={5}
-              className="mt-3 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] leading-relaxed text-ink outline-none ring-brand placeholder:text-ink-subtle focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="mt-3 w-full resize-y rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] leading-relaxed text-ink outline-none ring-brand placeholder:text-ink-subtle focus:border-brand focus:ring-2 focus:ring-brand/20"
               placeholder="Ex.: Carrossel sobre erros comuns na prova de R1, linguagem leve, CTA para o grupo do Telegram…"
             />
           </div>
 
-          <div className="border-t border-black/[0.06] pt-8">
+          <div className="border-t border-ink/[0.06] pt-8">
             <h2 className="text-sm font-semibold text-ink">
               Links de inspiração (opcional)
             </h2>
@@ -370,7 +409,7 @@ export function CreatePage() {
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none ring-brand transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none ring-brand transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/20"
             placeholder="https://instagram.com/p/..."
           />
             <p className="mt-2 text-[13px] text-ink-muted">
@@ -388,7 +427,7 @@ export function CreatePage() {
               type="url"
               value={referenceVideoUrl}
               onChange={(e) => setReferenceVideoUrl(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none ring-brand transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none ring-brand transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/20"
               placeholder="https://www.instagram.com/reel/… ou /p/… (vídeo)"
             />
             <p className="mt-2 text-[13px] text-ink-muted">
@@ -409,8 +448,8 @@ export function CreatePage() {
       )}
 
       {step === 2 && (
-        <section className="space-y-6 rounded-2xl border border-black/[0.06] bg-white p-8 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-          <div className="rounded-xl border border-black/[0.06] bg-[#fafafa] px-4 py-3 text-[14px] text-ink-muted">
+        <section className="space-y-6 rounded-2xl border border-ink/[0.06] bg-card p-8 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+          <div className="rounded-xl border border-ink/[0.06] bg-surface px-4 py-3 text-[14px] text-ink-muted">
             <span className="font-medium text-ink">Conta de destino:</span>{' '}
             {targetAccount ? (
               <>
@@ -430,7 +469,7 @@ export function CreatePage() {
               <select
                 value={productId}
                 onChange={(e) => setProductId(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none ring-brand focus:border-brand focus:ring-2 focus:ring-brand/20"
+                className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none ring-brand focus:border-brand focus:ring-2 focus:ring-brand/20"
               >
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -451,7 +490,7 @@ export function CreatePage() {
                       'flex-1 rounded-xl border px-4 py-3 text-[15px] font-medium transition',
                       contentType === t
                         ? 'border-brand bg-brand/10 text-brand'
-                        : 'border-black/[0.08] bg-[#fafafa] text-ink hover:border-black/[0.12]',
+                        : 'border-ink/[0.08] bg-surface text-ink hover:border-ink/[0.12]',
                     ].join(' ')}
                   >
                     {t}
@@ -461,7 +500,7 @@ export function CreatePage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+          <div className="rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
             <label
               htmlFor="post-generated-content"
               className="text-sm font-semibold text-ink"
@@ -478,7 +517,7 @@ export function CreatePage() {
               value={postGeneratedContent}
               onChange={(e) => setPostGeneratedContent(e.target.value)}
               rows={8}
-              className="mt-3 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] leading-relaxed text-ink outline-none placeholder:text-ink-subtle focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="mt-3 w-full resize-y rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] leading-relaxed text-ink outline-none placeholder:text-ink-subtle focus:border-brand focus:ring-2 focus:ring-brand/20"
               placeholder="Cole o conteúdo gerado do post (títulos dos slides, parágrafos, bullets…)"
             />
             <p className="mt-3 text-[12px] text-ink-muted">
@@ -490,7 +529,7 @@ export function CreatePage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border-2 border-brand/30 bg-gradient-to-b from-brand/[0.08] to-white p-6 shadow-[0_4px_24px_rgba(226,38,60,0.12)]">
+          <div className="rounded-2xl border-2 border-brand/30 bg-gradient-to-b from-brand/[0.08] to-card p-6 shadow-[0_4px_24px_rgba(226,38,60,0.12)]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">
               Studio — {brandLine}
             </p>
@@ -517,7 +556,7 @@ export function CreatePage() {
                 value={studioExtraNotes}
                 onChange={(e) => setStudioExtraNotes(e.target.value)}
                 rows={2}
-                className="mt-1.5 w-full resize-y rounded-xl border border-brand/20 bg-white px-4 py-2.5 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                className="mt-1.5 w-full resize-y rounded-xl border border-brand/20 bg-card px-4 py-2.5 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                 placeholder="Ex.: tom mais formal; evitar emojis; incluir menção a edital 2026…"
               />
             </label>
@@ -612,12 +651,12 @@ export function CreatePage() {
               type="url"
               value={canvaLink}
               onChange={(e) => setCanvaLink(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               placeholder="https://www.canva.com/design/…"
             />
           </div>
 
-          <div className="rounded-2xl border border-black/[0.06] bg-[#fafafa] p-6">
+          <div className="rounded-2xl border border-ink/[0.06] bg-surface p-6">
             <h3 className="text-sm font-semibold text-ink">
               Gerador de legenda com SEO
             </h3>
@@ -633,7 +672,7 @@ export function CreatePage() {
                   type="text"
                   value={seoPrimaryKeyword}
                   onChange={(e) => setSeoPrimaryKeyword(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-white px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  className="mt-1.5 w-full rounded-xl border border-ink/[0.1] bg-card px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                   placeholder="Ex.: prova de residência médica"
                 />
               </label>
@@ -643,7 +682,7 @@ export function CreatePage() {
                   type="text"
                   value={seoSecondaryTerms}
                   onChange={(e) => setSeoSecondaryTerms(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-white px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  className="mt-1.5 w-full rounded-xl border border-ink/[0.1] bg-card px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                   placeholder="Separados por vírgula: R1, estudo, plantão"
                 />
               </label>
@@ -654,7 +693,7 @@ export function CreatePage() {
                 type="text"
                 value={seoCta}
                 onChange={(e) => setSeoCta(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-white px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                className="mt-1.5 w-full rounded-xl border border-ink/[0.1] bg-card px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                 placeholder="Ex.: Link na bio para lista de espera"
               />
             </label>
@@ -703,12 +742,12 @@ export function CreatePage() {
               value={seoCaption}
               onChange={(e) => setSeoCaption(e.target.value)}
               rows={8}
-              className="mt-2 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] leading-relaxed text-ink outline-none placeholder:text-ink-subtle focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="mt-2 w-full resize-y rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] leading-relaxed text-ink outline-none placeholder:text-ink-subtle focus:border-brand focus:ring-2 focus:ring-brand/20"
               placeholder="Gere acima ou escreva aqui…"
             />
           </div>
 
-          <div className="space-y-3 rounded-xl bg-[#f5f5f7] p-5 text-[14px] text-ink-muted">
+          <div className="space-y-3 rounded-xl bg-surface p-5 text-[14px] text-ink-muted">
             <p>
               <strong className="font-medium text-ink">Resumo:</strong>{' '}
               {contentType} para{' '}
@@ -775,7 +814,7 @@ export function CreatePage() {
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="rounded-full border border-black/[0.12] bg-white px-5 py-2.5 text-[15px] font-medium text-ink hover:bg-black/[0.03]"
+              className="rounded-full border border-ink/[0.12] bg-card px-5 py-2.5 text-[15px] font-medium text-ink hover:bg-ink/[0.03]"
             >
               Voltar
             </button>
@@ -788,6 +827,62 @@ export function CreatePage() {
           </div>
         </section>
       )}
+
+      <section className="rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+        <h2 className="text-lg font-semibold tracking-tight text-ink">
+          Rascunhos salvos
+        </h2>
+        <p className="mt-1 text-[13px] text-ink-muted">
+          Todos os rascunhos do workspace, do mais recente ao mais antigo.
+        </p>
+
+        {draftsLoading ? (
+          <div className="mt-4 space-y-2">
+            {[1, 2, 3].map((k) => (
+              <div key={k} className="h-12 animate-pulse rounded-xl bg-ink/[0.06]" />
+            ))}
+          </div>
+        ) : drafts.length === 0 ? (
+          <p className="mt-4 text-[14px] text-ink-muted">
+            Nenhum rascunho ainda. Crie o primeiro conteúdo acima.
+          </p>
+        ) : (
+          <ul className="mt-4 divide-y divide-ink/[0.06] overflow-hidden rounded-xl border border-ink/[0.06]">
+            {drafts.map((d) => (
+              <li
+                key={d.id}
+                className="flex flex-wrap items-center justify-between gap-2 bg-card px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-medium text-ink">
+                    {d.title}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-ink-muted">
+                    {d.type} · Atualizado em{' '}
+                    {new Date(d.updatedAt).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </p>
+                </div>
+                <span
+                  className={[
+                    'shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-medium',
+                    d.status === 'Aprovado'
+                      ? 'bg-emerald-500/15 text-emerald-800'
+                      : d.status === 'Em revisão'
+                        ? 'bg-brand/15 text-brand'
+                        : 'bg-surface text-ink-muted',
+                  ].join(' ')}
+                >
+                  {d.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }

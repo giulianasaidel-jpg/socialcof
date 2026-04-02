@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { AppWorkspaceProvider } from './context/AppWorkspaceContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { CreatePage } from './pages/CreatePage'
@@ -10,37 +11,67 @@ import { SchedulePage } from './pages/SchedulePage'
 import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
 import { MedicalNewsPage } from './pages/MedicalNewsPage'
 import { TrendsPage } from './pages/TrendsPage'
+import { LoginPage } from './pages/LoginPage'
+import type { ReactNode } from 'react'
 
 /**
- * Rotas do protótipo de alta fidelidade SocialCof.
+ * Protege rotas: redireciona para /login se não autenticado.
+ */
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-[15px] text-ink-muted">Carregando…</p>
+      </div>
+    )
+  }
+
+  if (!user) return <Navigate to="/login" replace />
+
+  return <>{children}</>
+}
+
+/**
+ * Rotas do Social Cof.
  */
 function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-      <AppWorkspaceProvider>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="criar" element={<CreatePage />} />
-            <Route path="concorrencia" element={<CompetitorsPage />} />
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
             <Route
-              path="biblioteca"
-              element={<Navigate to="/concorrencia" replace />}
-            />
-            <Route path="produtos" element={<ProductsPage />} />
-            <Route path="agenda" element={<SchedulePage />} />
-            <Route path="trends" element={<TrendsPage />} />
-            <Route path="noticias-medicas" element={<MedicalNewsPage />} />
-            <Route path="admin" element={<AdminOverviewPage />} />
-            <Route
-              path="admin/instagram"
-              element={<Navigate to="/admin" replace />}
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </AppWorkspaceProvider>
+              element={
+                <RequireAuth>
+                  <AppWorkspaceProvider>
+                    <AppLayout />
+                  </AppWorkspaceProvider>
+                </RequireAuth>
+              }
+            >
+              <Route index element={<DashboardPage />} />
+              <Route path="criar" element={<CreatePage />} />
+              <Route path="concorrencia" element={<CompetitorsPage />} />
+              <Route
+                path="biblioteca"
+                element={<Navigate to="/concorrencia" replace />}
+              />
+              <Route path="produtos" element={<ProductsPage />} />
+              <Route path="agenda" element={<SchedulePage />} />
+              <Route path="trends" element={<TrendsPage />} />
+              <Route path="noticias-medicas" element={<MedicalNewsPage />} />
+              <Route path="admin" element={<AdminOverviewPage />} />
+              <Route
+                path="admin/instagram"
+                element={<Navigate to="/admin" replace />}
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
   )

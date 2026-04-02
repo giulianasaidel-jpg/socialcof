@@ -33,7 +33,7 @@ export function DiscoveryToolbar({
   disabledNext,
 }: DiscoveryToolbarProps) {
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-ink/10 bg-white/90 p-4 shadow-[0_2px_12px_rgba(28,29,32,0.06)] sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-4 rounded-2xl border border-ink/10 bg-card/90 p-4 shadow-[0_2px_12px_rgba(28,29,32,0.06)] sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
       <div className="min-w-0 flex-1 sm:max-w-md">
         <label
           htmlFor={accountSelectId}
@@ -46,7 +46,7 @@ export function DiscoveryToolbar({
           id={accountSelectId}
           value={accountValue}
           onChange={(e) => onAccountChange(e.target.value)}
-          className="mt-2 w-full rounded-xl border border-ink/10 bg-[#fafafa] px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="mt-2 w-full rounded-xl border border-ink/10 bg-surface px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         >
           {accountOptions.map((o) => (
             <option key={o.id} value={o.id}>
@@ -62,7 +62,7 @@ export function DiscoveryToolbar({
             type="button"
             onClick={onPrev}
             disabled={disabledPrev}
-            className="rounded-xl border border-ink/10 bg-white px-4 py-2 text-[14px] font-medium text-ink transition hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-xl border border-ink/10 bg-card px-4 py-2 text-[14px] font-medium text-ink transition hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Anterior
           </button>
@@ -73,7 +73,7 @@ export function DiscoveryToolbar({
             type="button"
             onClick={onNext}
             disabled={disabledNext}
-            className="rounded-xl border border-ink/10 bg-white px-4 py-2 text-[14px] font-medium text-ink transition hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-xl border border-ink/10 bg-card px-4 py-2 text-[14px] font-medium text-ink transition hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Próxima
           </button>

@@ -1,7 +1,4 @@
-/**
- * Tipos e busca de trends (TikTok) e notícias médicas.
- * O crawler roda no backend; este módulo chama a API e usa mock se indisponível.
- */
+import { api as _api } from '../lib/api'
 
 export type TikTokTrendItem = {
   id: string
@@ -192,23 +189,33 @@ const mockMedicalNews: MedicalNewsItem[] = [
   },
 ]
 
-function crawlerBaseUrl(): string {
-  const raw = import.meta.env.VITE_CRAWLER_API_BASE
-  return typeof raw === 'string' ? raw.replace(/\/$/, '') : ''
+function apiBaseUrl(): string {
+  const viteApi = import.meta.env.VITE_API_BASE
+  if (typeof viteApi === 'string' && viteApi) return viteApi.replace(/\/$/, '')
+  const crawler = import.meta.env.VITE_CRAWLER_API_BASE
+  if (typeof crawler === 'string' && crawler) return crawler.replace(/\/$/, '')
+  return ''
+}
+
+function discoveryHeaders(): Record<string, string> {
+  const { getAccessToken } = _api
+  const token = getAccessToken()
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
 }
 
 /**
  * Busca trends do TikTok coletadas pelo crawler (GET JSON).
- * Sem `VITE_CRAWLER_API_BASE` ou em falha de rede, retorna dados de demonstração.
+ * Sem URL configurada ou em falha de rede, retorna dados de demonstração.
  */
 export async function fetchTikTokTrends(): Promise<TikTokTrendItem[]> {
-  const base = crawlerBaseUrl()
+  const base = apiBaseUrl()
   if (!base) return structuredClone(mockTikTokTrends)
 
   try {
-    const res = await fetch(`${base}/tiktok/trends`, {
-      headers: { Accept: 'application/json' },
-    })
+    const res = await fetch(`${base}/tiktok/trends`, { headers: discoveryHeaders() })
     if (!res.ok) return structuredClone(mockTikTokTrends)
     const data = (await res.json()) as unknown
     if (!Array.isArray(data)) return structuredClone(mockTikTokTrends)
@@ -220,16 +227,14 @@ export async function fetchTikTokTrends(): Promise<TikTokTrendItem[]> {
 
 /**
  * Busca últimas notícias médicas indexadas pelo crawler (GET JSON).
- * Sem `VITE_CRAWLER_API_BASE` ou em falha, retorna dados de demonstração.
+ * Sem URL configurada ou em falha, retorna dados de demonstração.
  */
 export async function fetchMedicalNews(): Promise<MedicalNewsItem[]> {
-  const base = crawlerBaseUrl()
+  const base = apiBaseUrl()
   if (!base) return structuredClone(mockMedicalNews)
 
   try {
-    const res = await fetch(`${base}/medical-news`, {
-      headers: { Accept: 'application/json' },
-    })
+    const res = await fetch(`${base}/medical-news`, { headers: discoveryHeaders() })
     if (!res.ok) return structuredClone(mockMedicalNews)
     const data = (await res.json()) as unknown
     if (!Array.isArray(data)) return structuredClone(mockMedicalNews)

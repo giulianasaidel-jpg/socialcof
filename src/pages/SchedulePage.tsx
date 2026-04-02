@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAppWorkspace } from '../context/AppWorkspaceContext'
+import { api } from '../lib/api'
 import {
   SCHEDULE_EMPTY_ENTRY,
-  scheduleCellKey,
   type ScheduleDayEntry,
   type ScheduleEntryStatus,
 } from '../data/mock'
@@ -32,7 +32,6 @@ function addDays(d: Date, n: number): Date {
   return x
 }
 
-/** Data local YYYY-MM-DD (evita deslocamento UTC). */
 function toLocalISODate(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -88,12 +87,15 @@ function dayNumFromIso(iso: string): number {
 type DayEditorProps = {
   entry: ScheduleDayEntry
   onPatch: (partial: Partial<ScheduleDayEntry>) => void
+  onSave: () => void
+  onDelete: () => void
+  saving: boolean
 }
 
 /**
- * Formulário completo de um dia (reutilizado no painel de edição).
+ * Formulário completo de um dia com botões de salvar/apagar.
  */
-function DayEditor({ entry, onPatch }: DayEditorProps) {
+function DayEditor({ entry, onPatch, onSave, onDelete, saving }: DayEditorProps) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -103,7 +105,7 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
             type="time"
             value={entry.time}
             onChange={(ev) => onPatch({ time: ev.target.value })}
-            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="mt-1.5 w-full rounded-xl border border-ink/[0.1] bg-surface px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </label>
         <label className="block text-[13px] font-medium text-ink-muted">
@@ -111,7 +113,7 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
           <select
             value={entry.format}
             onChange={(ev) => onPatch({ format: ev.target.value })}
-            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="mt-1.5 w-full rounded-xl border border-ink/[0.1] bg-surface px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           >
             {['Carrossel', 'Reels', 'Estático', 'Stories', 'Live'].map((f) => (
               <option key={f} value={f}>
@@ -127,7 +129,7 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
             onChange={(ev) =>
               onPatch({ status: ev.target.value as ScheduleEntryStatus })
             }
-            className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="mt-1.5 w-full rounded-xl border border-ink/[0.1] bg-surface px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           >
             {STATUS_OPTIONS.map((st) => (
               <option key={st} value={st}>
@@ -143,7 +145,7 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
           type="text"
           value={entry.theme}
           onChange={(ev) => onPatch({ theme: ev.target.value })}
-          className="mt-1.5 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="mt-1.5 w-full rounded-xl border border-ink/[0.1] bg-surface px-3 py-2 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           placeholder="Ex.: Dica de estudo — cardiologia"
         />
       </label>
@@ -153,7 +155,7 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
           value={entry.content}
           onChange={(ev) => onPatch({ content: ev.target.value })}
           rows={3}
-          className="mt-1.5 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="mt-1.5 w-full resize-y rounded-xl border border-ink/[0.1] bg-surface px-3 py-2 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           placeholder="Resumo do que será publicado…"
         />
       </label>
@@ -163,16 +165,34 @@ function DayEditor({ entry, onPatch }: DayEditorProps) {
           value={entry.caption}
           onChange={(ev) => onPatch({ caption: ev.target.value })}
           rows={3}
-          className="mt-1.5 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-3 py-2 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="mt-1.5 w-full resize-y rounded-xl border border-ink/[0.1] bg-surface px-3 py-2 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           placeholder="Texto previsto para a publicação"
         />
       </label>
+      <div className="flex gap-2 pt-2">
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="rounded-full bg-brand px-5 py-2 text-[14px] font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+        >
+          {saving ? 'Salvando…' : 'Salvar'}
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={saving}
+          className="rounded-full border border-red-200 px-5 py-2 text-[14px] font-medium text-red-800 hover:bg-red-50 disabled:opacity-60 dark:hover:bg-red-900/20"
+        >
+          Apagar dia
+        </button>
+      </div>
     </div>
   )
 }
 
 /**
- * Agenda mensal: cada linha é uma semana; edição ao selecionar um dia.
+ * Agenda mensal: cada linha é uma semana; edição ao selecionar um dia, salvo via API.
  */
 export function SchedulePage() {
   const { instagramAccounts, brandShortName, brandSubtitle } =
@@ -184,10 +204,28 @@ export function SchedulePage() {
   )
   const [year, setYear] = useState(now.getFullYear())
   const [monthIndex, setMonthIndex] = useState(now.getMonth())
-  const [schedule, setSchedule] = useState<Record<string, ScheduleDayEntry>>(
-    {},
-  )
+  const [schedule, setSchedule] = useState<Record<string, ScheduleDayEntry>>({})
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (instagramAccounts.length && !scheduleAccountId) {
+      setScheduleAccountId(instagramAccounts[0].id)
+    }
+  }, [instagramAccounts, scheduleAccountId])
+
+  useEffect(() => {
+    if (!scheduleAccountId) return
+    const params = new URLSearchParams({
+      accountId: scheduleAccountId,
+      year: String(year),
+      month: String(monthIndex + 1),
+    })
+    api
+      .get<Record<string, ScheduleDayEntry>>(`/schedule?${params}`)
+      .then((data) => setSchedule(data ?? {}))
+      .catch(() => {})
+  }, [scheduleAccountId, year, monthIndex])
 
   const monthRows = useMemo(
     () => monthWeekRows(year, monthIndex),
@@ -196,7 +234,7 @@ export function SchedulePage() {
 
   const getEntry = useCallback(
     (accountId: string, date: string): ScheduleDayEntry => {
-      const key = scheduleCellKey(accountId, date)
+      const key = `${accountId}::${date}`
       return { ...SCHEDULE_EMPTY_ENTRY, ...schedule[key] }
     },
     [schedule],
@@ -204,11 +242,46 @@ export function SchedulePage() {
 
   const patchDay = useCallback(
     (accountId: string, date: string, partial: Partial<ScheduleDayEntry>) => {
-      const key = scheduleCellKey(accountId, date)
+      const key = `${accountId}::${date}`
       setSchedule((s) => {
         const prev = { ...SCHEDULE_EMPTY_ENTRY, ...s[key] }
         return { ...s, [key]: { ...prev, ...partial } }
       })
+    },
+    [],
+  )
+
+  const saveDay = useCallback(
+    async (accountId: string, date: string) => {
+      const key = `${accountId}::${date}`
+      const entry = { ...SCHEDULE_EMPTY_ENTRY, ...schedule[key] }
+      setSaving(true)
+      try {
+        await api.put(`/schedule/${accountId}/${date}`, entry)
+      } catch {}
+      finally {
+        setSaving(false)
+      }
+    },
+    [schedule],
+  )
+
+  const deleteDay = useCallback(
+    async (accountId: string, date: string) => {
+      const key = `${accountId}::${date}`
+      setSaving(true)
+      try {
+        await api.delete(`/schedule/${accountId}/${date}`)
+        setSchedule((s) => {
+          const next = { ...s }
+          delete next[key]
+          return next
+        })
+        setSelectedDate(null)
+      } catch {}
+      finally {
+        setSaving(false)
+      }
     },
     [],
   )
@@ -257,7 +330,7 @@ export function SchedulePage() {
         </p>
       </header>
 
-      <section className="flex flex-col gap-4 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)] sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+      <section className="flex flex-col gap-4 rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)] sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-[240px] max-w-md flex-1">
           <label
             htmlFor="sched-ig-account"
@@ -272,7 +345,7 @@ export function SchedulePage() {
               setScheduleAccountId(e.target.value)
               setSelectedDate(null)
             }}
-            className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           >
             {instagramAccounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -285,7 +358,7 @@ export function SchedulePage() {
           <button
             type="button"
             onClick={goPrevMonth}
-            className="rounded-full border border-black/[0.12] bg-white px-4 py-2 text-[14px] font-medium text-ink hover:bg-black/[0.03]"
+            className="rounded-full border border-ink/[0.12] bg-card px-4 py-2 text-[14px] font-medium text-ink hover:bg-ink/[0.03]"
           >
             Mês anterior
           </button>
@@ -295,7 +368,7 @@ export function SchedulePage() {
           <button
             type="button"
             onClick={goNextMonth}
-            className="rounded-full border border-black/[0.12] bg-white px-4 py-2 text-[14px] font-medium text-ink hover:bg-black/[0.03]"
+            className="rounded-full border border-ink/[0.12] bg-card px-4 py-2 text-[14px] font-medium text-ink hover:bg-ink/[0.03]"
           >
             Próximo mês
           </button>
@@ -312,10 +385,10 @@ export function SchedulePage() {
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+      <div className="overflow-x-auto rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
         <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
           <thead>
-            <tr className="border-b border-black/[0.06] bg-[#fafafa]">
+            <tr className="border-b border-ink/[0.06] bg-surface">
               <th className="w-10 px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
                 #
               </th>
@@ -333,9 +406,9 @@ export function SchedulePage() {
             {monthRows.map((week, wi) => (
               <tr
                 key={wi}
-                className="border-b border-black/[0.06] last:border-0 align-top"
+                className="border-b border-ink/[0.06] last:border-0 align-top"
               >
-                <td className="border-r border-black/[0.04] px-2 py-2 text-center text-[12px] font-medium text-ink-subtle">
+                <td className="border-r border-ink/[0.04] px-2 py-2 text-center text-[12px] font-medium text-ink-subtle">
                   S{wi + 1}
                 </td>
                 {week.map((dateISO, di) => {
@@ -343,7 +416,7 @@ export function SchedulePage() {
                     return (
                       <td
                         key={`e-${wi}-${di}`}
-                        className="min-h-[100px] border-l border-black/[0.04] bg-[#fafafa]/80 p-1"
+                        className="min-h-[100px] border-l border-ink/[0.04] bg-surface/80 p-1"
                       />
                     )
                   }
@@ -358,7 +431,7 @@ export function SchedulePage() {
                     <td
                       key={dateISO}
                       className={[
-                        'min-h-[100px] max-w-[140px] border-l border-black/[0.04] p-1 align-top',
+                        'min-h-[100px] max-w-[140px] border-l border-ink/[0.04] p-1 align-top',
                         isSel ? 'bg-brand/8' : '',
                       ].join(' ')}
                     >
@@ -369,7 +442,7 @@ export function SchedulePage() {
                           'flex w-full flex-col rounded-xl p-2 text-left transition',
                           isSel
                             ? 'ring-2 ring-brand'
-                            : 'hover:bg-black/[0.03]',
+                            : 'hover:bg-ink/[0.03]',
                         ].join(' ')}
                       >
                         <span className="text-[15px] font-semibold tabular-nums text-ink">
@@ -390,7 +463,7 @@ export function SchedulePage() {
                                   ? 'bg-emerald-500/15 text-emerald-800'
                                   : e.status === 'Agendado'
                                     ? 'bg-brand/15 text-brand'
-                                    : 'bg-[#f5f5f7] text-ink-muted',
+                                    : 'bg-surface text-ink-muted',
                               ].join(' ')}
                             >
                               {e.status}
@@ -412,7 +485,7 @@ export function SchedulePage() {
       </div>
 
       {selectedDate && selectedEntry && scheduleAccountId ? (
-        <section className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+        <section className="rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold capitalize text-ink">
               Editar dia — {formatWeekdayLong(selectedDate)}
@@ -427,9 +500,12 @@ export function SchedulePage() {
           </div>
           <DayEditor
             entry={selectedEntry}
+            saving={saving}
             onPatch={(partial) =>
               patchDay(scheduleAccountId, selectedDate, partial)
             }
+            onSave={() => void saveDay(scheduleAccountId, selectedDate)}
+            onDelete={() => void deleteDay(scheduleAccountId, selectedDate)}
           />
         </section>
       ) : (

@@ -129,7 +129,7 @@ export function TrendsPage() {
         disabledNext={page >= totalPages}
       />
 
-      <div className="rounded-2xl border border-ink/10 bg-white/90 p-4 text-[13px] leading-relaxed text-ink-muted shadow-[0_2px_12px_rgba(28,29,32,0.06)]">
+      <div className="rounded-2xl border border-ink/10 bg-card/90 p-4 text-[13px] leading-relaxed text-ink-muted shadow-[0_2px_12px_rgba(28,29,32,0.06)]">
         <p>
           <span className="font-medium text-ink">Fonte:</span>{' '}
           {hasApi
@@ -164,7 +164,7 @@ export function TrendsPage() {
           {pageItems.map((t) => (
             <li
               key={t.id}
-              className="rounded-2xl border border-ink/10 bg-white p-5 shadow-[0_2px_12px_rgba(28,29,32,0.06)]"
+              className="rounded-2xl border border-ink/10 bg-card p-5 shadow-[0_2px_12px_rgba(28,29,32,0.06)]"
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex min-w-0 flex-1 flex-wrap items-start gap-3">

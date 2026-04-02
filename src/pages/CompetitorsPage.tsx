@@ -1,17 +1,17 @@
-import { useCallback, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useAppWorkspace } from '../context/AppWorkspaceContext'
-import {
-  competitorsForMedCofAccount,
-  type CompetitorProfile,
-} from '../data/mock'
+import { api } from '../lib/api'
 
-const MANUAL_COMPETITORS_STORAGE_KEY = 'socialcof-concorrencia-manual'
-
-type ManualCompetitorRow = {
+type Competitor = {
   id: string
+  accountId: string
   handle: string
   displayName: string
-  profileUrl: string
+  profileUrl?: string
+  followers?: number | null
+  engagementRatePct?: number | null
+  avgLikesPerPost?: number | null
+  publishedPostsCount?: number | null
 }
 
 /**
@@ -20,7 +20,6 @@ type ManualCompetitorRow = {
 function parseInstagramInput(raw: string): {
   handle: string
   displayName: string
-  profileUrl: string
 } | null {
   const t = raw.trim()
   if (!t) return null
@@ -38,45 +37,7 @@ function parseInstagramInput(raw: string): {
     handle = t.replace(/^@/, '').split(/[/?#\s]/)[0] ?? ''
   }
   if (!handle || !/^[a-zA-Z0-9._]+$/.test(handle)) return null
-  return {
-    handle,
-    displayName: `@${handle}`,
-    profileUrl: `https://www.instagram.com/${handle}/`,
-  }
-}
-
-/**
- * Carrega mapa workspace::conta → concorrentes adicionados manualmente.
- */
-function loadManualMap(): Record<string, ManualCompetitorRow[]> {
-  try {
-    const raw = localStorage.getItem(MANUAL_COMPETITORS_STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw) as Record<string, ManualCompetitorRow[]>
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-/**
- * Persiste mapa de concorrentes manuais.
- */
-function saveManualMap(map: Record<string, ManualCompetitorRow[]>) {
-  localStorage.setItem(MANUAL_COMPETITORS_STORAGE_KEY, JSON.stringify(map))
-}
-
-type UnifiedCompetitor = {
-  id: string
-  handle: string
-  displayName: string
-  profileUrl: string
-  followers: number | null
-  engagementRatePct: number | null
-  avgLikesPerPost: number | null
-  publishedPostsCount: number | null
-  insightsToBorrow: string[]
-  isManual: boolean
+  return { handle, displayName: `@${handle}` }
 }
 
 /**
@@ -92,78 +53,44 @@ async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 /**
- * Concorrência: concorrentes do mock + perfis que você adicionar (@ ou link).
+ * Concorrência: lista da API filtrada por conta + adicionar/remover via API.
  */
 export function CompetitorsPage() {
-  const {
-    products,
-    instagramAccounts,
-    brandShortName,
-    brandSubtitle,
-    workspaceId,
-  } = useAppWorkspace()
-  const [accountId, setAccountId] = useState(instagramAccounts[0].id)
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const [manualMap, setManualMap] = useState(loadManualMap)
+  const { instagramAccounts, brandShortName, brandSubtitle } = useAppWorkspace()
+  const brandLine = `${brandShortName} · ${brandSubtitle}`
+  const [accountId, setAccountId] = useState(instagramAccounts[0]?.id ?? '')
+  const [competitors, setCompetitors] = useState<Competitor[]>([])
+  const [loading, setLoading] = useState(false)
   const [newIgInput, setNewIgInput] = useState('')
   const [addError, setAddError] = useState('')
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
-  const storageRowKey = `${workspaceId}::${accountId}`
+  useEffect(() => {
+    if (instagramAccounts.length && !accountId) {
+      setAccountId(instagramAccounts[0].id)
+    }
+  }, [instagramAccounts, accountId])
+
+  useEffect(() => {
+    if (!accountId) return
+    setLoading(true)
+    api
+      .get<Competitor[]>(`/competitors?accountId=${accountId}`)
+      .then(setCompetitors)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [accountId])
 
   const selectedAccount = useMemo(
     () => instagramAccounts.find((a) => a.id === accountId),
     [accountId, instagramAccounts],
   )
 
-  const mockList = useMemo(
-    () => competitorsForMedCofAccount(accountId, products),
-    [accountId, products],
-  )
-
-  const manualRows = manualMap[storageRowKey] ?? []
-
-  const unifiedList = useMemo((): UnifiedCompetitor[] => {
-    const fromManual: UnifiedCompetitor[] = manualRows.map((m) => ({
-      id: m.id,
-      handle: m.handle,
-      displayName: m.displayName,
-      profileUrl: m.profileUrl,
-      followers: null,
-      engagementRatePct: null,
-      avgLikesPerPost: null,
-      publishedPostsCount: null,
-      insightsToBorrow: [
-        'Perfil adicionado por você — observe formatos e ganchos que performam e adapte ao seu tom.',
-        'Salve posts de referência e compare CTAs e frequência com a sua conta.',
-      ],
-      isManual: true,
-    }))
-
-    const fromMock: UnifiedCompetitor[] = mockList.map(
-      (c: CompetitorProfile) => ({
-        id: c.id,
-        handle: c.handle,
-        displayName: c.displayName,
-        profileUrl: c.profileUrl,
-        followers: c.followers,
-        engagementRatePct: c.engagementRatePct,
-        avgLikesPerPost: c.avgLikesPerPost,
-        publishedPostsCount: c.publishedPostsCount,
-        insightsToBorrow: c.insightsToBorrow,
-        isManual: false,
-      }),
-    )
-
-    return [...fromManual, ...fromMock]
-  }, [manualRows, mockList])
-
-  const brandLine = `${brandShortName} · ${brandSubtitle}`
-
   /**
-   * Inclui um concorrente digitado (salvo por conta e por linha Social Cof).
+   * Adiciona concorrente via POST /competitors.
    */
-  const addManualCompetitor = useCallback(
-    (e: FormEvent) => {
+  const addCompetitor = useCallback(
+    async (e: FormEvent) => {
       e.preventDefault()
       setAddError('')
       const parsed = parseInstagramInput(newIgInput)
@@ -172,50 +99,35 @@ export function CompetitorsPage() {
         return
       }
       const lower = parsed.handle.toLowerCase()
-      if (manualRows.some((r) => r.handle.toLowerCase() === lower)) {
+      if (competitors.some((c) => c.handle.toLowerCase() === lower)) {
         setAddError('Este @ já está na lista para esta conta.')
         return
       }
-      if (mockList.some((c) => c.handle.toLowerCase() === lower)) {
-        setAddError('Este perfil já aparece nos concorrentes do protótipo.')
-        return
+      try {
+        const created = await api.post<Competitor>('/competitors', {
+          accountId,
+          handle: parsed.handle,
+          displayName: parsed.displayName,
+          profileUrl: `https://www.instagram.com/${parsed.handle}/`,
+        })
+        setCompetitors((prev) => [...prev, created])
+        setNewIgInput('')
+      } catch {
+        setAddError('Não foi possível adicionar o concorrente.')
       }
-
-      const row: ManualCompetitorRow = {
-        id: `manual-${Date.now()}-${lower}`,
-        handle: parsed.handle,
-        displayName: parsed.displayName,
-        profileUrl: parsed.profileUrl,
-      }
-
-      setManualMap((prev) => {
-        const next = { ...prev }
-        const list = [...(next[storageRowKey] ?? []), row]
-        next[storageRowKey] = list
-        saveManualMap(next)
-        return next
-      })
-      setNewIgInput('')
     },
-    [newIgInput, manualRows, mockList, storageRowKey],
+    [newIgInput, competitors, accountId],
   )
 
   /**
-   * Remove concorrente adicionado manualmente.
+   * Remove concorrente via DELETE /competitors/:id.
    */
-  const removeManual = useCallback(
-    (id: string) => {
-      setManualMap((prev) => {
-        const next = { ...prev }
-        const list = (next[storageRowKey] ?? []).filter((r) => r.id !== id)
-        if (list.length === 0) delete next[storageRowKey]
-        else next[storageRowKey] = list
-        saveManualMap(next)
-        return next
-      })
-    },
-    [storageRowKey],
-  )
+  const removeCompetitor = useCallback(async (id: string) => {
+    try {
+      await api.delete(`/competitors/${id}`)
+      setCompetitors((prev) => prev.filter((c) => c.id !== id))
+    } catch {}
+  }, [])
 
   return (
     <div className="space-y-8">
@@ -225,12 +137,11 @@ export function CompetitorsPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">
           Escolha uma das suas contas Instagram ({brandLine}). Inclua perfis
-          concorrentes abaixo; os do protótipo continuam listados quando
-          existirem para a conta.
+          concorrentes abaixo para acompanhar.
         </p>
       </header>
 
-      <div className="rounded-2xl border border-black/[0.08] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+      <div className="rounded-2xl border border-ink/[0.08] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
         <label
           htmlFor="concorrencia-conta"
           className="text-sm font-semibold text-ink"
@@ -238,14 +149,13 @@ export function CompetitorsPage() {
           Sua conta Instagram
         </label>
         <p className="mt-1 text-[13px] text-ink-muted">
-          Concorrentes manuais ficam guardados por conta e por linha (produtos
-          ou médicos).
+          Concorrentes são filtrados por conta.
         </p>
         <select
           id="concorrencia-conta"
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
-          className="mt-4 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="mt-4 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         >
           {instagramAccounts.map((a) => (
             <option key={a.id} value={a.id}>
@@ -259,8 +169,7 @@ export function CompetitorsPage() {
               {selectedAccount.displayName}
             </span>{' '}
             —{' '}
-            {selectedAccount.followers.toLocaleString('pt-BR')} seguidores
-            (simulado){' '}
+            {selectedAccount.followers.toLocaleString('pt-BR')} seguidores{' '}
             <a
               href={selectedAccount.profileUrl}
               target="_blank"
@@ -273,7 +182,7 @@ export function CompetitorsPage() {
         ) : null}
       </div>
 
-      <section className="rounded-2xl border border-black/[0.08] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+      <section className="rounded-2xl border border-ink/[0.08] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
         <h2 className="text-sm font-semibold text-ink">
           Adicionar Instagram da concorrência
         </h2>
@@ -281,14 +190,11 @@ export function CompetitorsPage() {
           Cole o @ do perfil ou o link completo (ex.: instagram.com/usuario).
         </p>
         <form
-          onSubmit={addManualCompetitor}
+          onSubmit={(e) => void addCompetitor(e)}
           className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
         >
           <div className="min-w-0 flex-1">
-            <label
-              htmlFor="concorrencia-novo-ig"
-              className="sr-only"
-            >
+            <label htmlFor="concorrencia-novo-ig" className="sr-only">
               Instagram do concorrente
             </label>
             <input
@@ -298,7 +204,7 @@ export function CompetitorsPage() {
                 setNewIgInput(e.target.value)
                 setAddError('')
               }}
-              className="w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               placeholder="@concorrente ou https://www.instagram.com/concorrente/"
             />
           </div>
@@ -314,55 +220,71 @@ export function CompetitorsPage() {
         ) : null}
       </section>
 
-      {unifiedList.length === 0 ? (
+      {loading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((k) => (
+            <div
+              key={k}
+              className="h-32 animate-pulse rounded-2xl bg-ink/[0.06]"
+            />
+          ))}
+        </div>
+      ) : competitors.length === 0 ? (
         <p className="rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-[14px] text-amber-950">
-          Nenhum concorrente: adicione um Instagram acima ou aguarde dados do
-          protótipo para esta conta.
+          Nenhum concorrente cadastrado para esta conta. Adicione um Instagram
+          acima.
         </p>
       ) : (
         <ul className="space-y-8">
-          {unifiedList.map((c) => {
-            const allInsights = c.insightsToBorrow.join('\n')
+          {competitors.map((c) => {
+            const profileUrl =
+              c.profileUrl ?? `https://www.instagram.com/${c.handle}/`
             return (
               <li
                 key={c.id}
-                className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]"
+                className="rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)]"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/[0.06] pb-4">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink/[0.06] pb-4">
                   <div>
-                    {c.isManual ? (
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">
-                        Adicionado por você
-                      </p>
-                    ) : null}
                     <h2 className="mt-0.5 text-lg font-semibold text-ink">
                       {c.displayName}
                     </h2>
                     <p className="text-[14px] text-ink-muted">@{c.handle}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {c.isManual ? (
-                      <button
-                        type="button"
-                        onClick={() => removeManual(c.id)}
-                        className="rounded-full border border-red-200 px-3 py-1.5 text-[12px] font-medium text-red-800 hover:bg-red-50"
-                      >
-                        Remover
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void removeCompetitor(c.id)}
+                      className="rounded-full border border-red-200 px-3 py-1.5 text-[12px] font-medium text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      Remover
+                    </button>
                     <a
-                      href={c.profileUrl}
+                      href={profileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-full border border-black/[0.1] px-3 py-1.5 text-[12px] font-medium text-ink hover:bg-black/[0.04]"
+                      className="rounded-full border border-ink/[0.1] px-3 py-1.5 text-[12px] font-medium text-ink hover:bg-ink/[0.04]"
                     >
                       Ver no Instagram
                     </a>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await copyToClipboard(profileUrl)
+                        if (ok) {
+                          setCopiedKey(c.id)
+                          setTimeout(() => setCopiedKey(null), 2000)
+                        }
+                      }}
+                      className="rounded-full border border-ink/[0.1] px-3 py-1.5 text-[12px] font-medium text-ink hover:bg-ink/[0.04]"
+                    >
+                      {copiedKey === c.id ? 'Link copiado!' : 'Copiar link'}
+                    </button>
                   </div>
                 </div>
 
                 <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl bg-[#f5f5f7] px-3 py-2.5">
+                  <div className="rounded-xl bg-surface px-3 py-2.5">
                     <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                       Seguidores
                     </dt>
@@ -372,7 +294,7 @@ export function CompetitorsPage() {
                         : '—'}
                     </dd>
                   </div>
-                  <div className="rounded-xl bg-[#f5f5f7] px-3 py-2.5">
+                  <div className="rounded-xl bg-surface px-3 py-2.5">
                     <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                       Engajamento
                     </dt>
@@ -385,7 +307,7 @@ export function CompetitorsPage() {
                         : '—'}
                     </dd>
                   </div>
-                  <div className="rounded-xl bg-[#f5f5f7] px-3 py-2.5">
+                  <div className="rounded-xl bg-surface px-3 py-2.5">
                     <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                       Média de curtidas
                     </dt>
@@ -395,7 +317,7 @@ export function CompetitorsPage() {
                         : '—'}
                     </dd>
                   </div>
-                  <div className="rounded-xl bg-[#f5f5f7] px-3 py-2.5">
+                  <div className="rounded-xl bg-surface px-3 py-2.5">
                     <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                       Posts no perfil
                     </dt>
@@ -406,53 +328,6 @@ export function CompetitorsPage() {
                     </dd>
                   </div>
                 </dl>
-
-                <div className="mt-6">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                      O que funciona no perfil deles — copie para o seu
-                    </p>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const ok = await copyToClipboard(allInsights)
-                        if (ok) {
-                          setCopiedKey(`${c.id}-all`)
-                          setTimeout(() => setCopiedKey(null), 2000)
-                        }
-                      }}
-                      className="rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-white hover:bg-ink/90"
-                    >
-                      {copiedKey === `${c.id}-all` ? 'Copiado!' : 'Copiar todos'}
-                    </button>
-                  </div>
-                  <ul className="mt-3 space-y-2">
-                    {c.insightsToBorrow.map((line, i) => {
-                      const key = `${c.id}-${i}`
-                      return (
-                        <li
-                          key={key}
-                          className="flex gap-2 rounded-xl border border-black/[0.06] bg-[#fafafa] p-3 text-[14px] leading-relaxed text-ink"
-                        >
-                          <span className="min-w-0 flex-1">{line}</span>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const ok = await copyToClipboard(line)
-                              if (ok) {
-                                setCopiedKey(key)
-                                setTimeout(() => setCopiedKey(null), 2000)
-                              }
-                            }}
-                            className="shrink-0 self-start rounded-lg border border-black/[0.08] px-2 py-1 text-[11px] font-medium text-brand hover:bg-brand/10"
-                          >
-                            {copiedKey === key ? 'OK' : 'Copiar'}
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
               </li>
             )
           })}

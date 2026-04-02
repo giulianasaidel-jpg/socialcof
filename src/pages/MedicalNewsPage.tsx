@@ -129,7 +129,7 @@ export function MedicalNewsPage() {
         disabledNext={page >= totalPages}
       />
 
-      <div className="rounded-2xl border border-ink/10 bg-white/90 p-4 text-[13px] leading-relaxed text-ink-muted shadow-[0_2px_12px_rgba(28,29,32,0.06)]">
+      <div className="rounded-2xl border border-ink/10 bg-card/90 p-4 text-[13px] leading-relaxed text-ink-muted shadow-[0_2px_12px_rgba(28,29,32,0.06)]">
         <p>
           <span className="font-medium text-ink">Fonte:</span>{' '}
           {hasApi
@@ -164,7 +164,7 @@ export function MedicalNewsPage() {
           {pageItems.map((n) => (
             <li
               key={n.id}
-              className="flex flex-col rounded-2xl border border-ink/10 bg-white p-5 shadow-[0_2px_12px_rgba(28,29,32,0.06)]"
+              className="flex flex-col rounded-2xl border border-ink/10 bg-card p-5 shadow-[0_2px_12px_rgba(28,29,32,0.06)]"
             >
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
                 {n.source}

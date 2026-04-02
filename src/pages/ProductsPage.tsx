@@ -70,7 +70,7 @@ export function ProductsPage() {
         </p>
       </header>
 
-      <section className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+      <section className="rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
         <label
           htmlFor="product-ig-filter"
           className="text-sm font-medium text-ink"
@@ -81,7 +81,7 @@ export function ProductsPage() {
           id="product-ig-filter"
           value={filterAccountId}
           onChange={(e) => setFilterAccountId(e.target.value)}
-          className="mt-2 w-full max-w-xl rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="mt-2 w-full max-w-xl rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         >
           <option value="">Todas as contas — mostrar todos os produtos</option>
           {instagramAccounts.map((a) => (
@@ -99,7 +99,7 @@ export function ProductsPage() {
 
       <div className="space-y-8">
         {filteredProducts.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-black/[0.12] bg-[#fafafa] px-6 py-10 text-center text-[15px] text-ink-muted">
+          <p className="rounded-2xl border border-dashed border-ink/[0.12] bg-surface px-6 py-10 text-center text-[15px] text-ink-muted">
             Nenhum produto usa esta conta no cadastro. Escolha outra conta ou
             “Todas”.
           </p>
@@ -113,7 +113,7 @@ export function ProductsPage() {
           return (
             <article
               key={p.id}
-              className="rounded-2xl border border-black/[0.06] bg-white p-8 shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
+              className="rounded-2xl border border-ink/[0.06] bg-card p-8 shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
             >
               <h2 className="text-xl font-semibold tracking-tight text-ink">
                 {p.name}
@@ -132,7 +132,7 @@ export function ProductsPage() {
                           href={a.profileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex rounded-full bg-[#f5f5f7] px-3 py-1 text-[12px] font-medium text-brand hover:bg-brand/10"
+                          className="inline-flex rounded-full bg-surface px-3 py-1 text-[12px] font-medium text-brand hover:bg-brand/10"
                         >
                           @{a.handle}
                         </a>
@@ -176,7 +176,7 @@ export function ProductsPage() {
                           communicationGuideLink: e.target.value,
                         })
                       }
-                      className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                      className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                       placeholder="https://…"
                     />
                   </label>
@@ -210,7 +210,7 @@ export function ProductsPage() {
                       onChange={(e) =>
                         patch(p.id, { visualIdLink: e.target.value })
                       }
-                      className="mt-2 w-full rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                      className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-2.5 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                       placeholder="https://…"
                     />
                   </label>
@@ -253,7 +253,7 @@ export function ProductsPage() {
                   value={row.prompt}
                   onChange={(e) => patch(p.id, { prompt: e.target.value })}
                   rows={5}
-                  className="mt-3 w-full resize-y rounded-xl border border-black/[0.1] bg-[#fafafa] px-4 py-3 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  className="mt-3 w-full resize-y rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] leading-relaxed text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                 />
               </div>
             </article>
