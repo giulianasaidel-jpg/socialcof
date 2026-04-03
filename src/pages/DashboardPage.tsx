@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppWorkspace } from '../context/AppWorkspaceContext'
 import { api } from '../lib/api'
-import { GeneratePanel, TwitterLikePost } from '../components/GeneratePanel'
+import { GeneratePanel, type TwitterLikePost } from '../components/GeneratePanel'
 
 type Post = {
   id: string

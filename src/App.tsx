@@ -19,6 +19,7 @@ import { TikTokAccountsPage } from './pages/TikTokAccountsPage'
 import { TikTokPostsPage } from './pages/TikTokPostsPage'
 import { InstagramStoriesPage } from './pages/InstagramStoriesPage'
 import { CentralDePerfilsPage } from './pages/CentralDePerfilsPage'
+import { CentralDeSitesPage } from './pages/CentralDeSitesPage'
 import { LoginPage } from './pages/LoginPage'
 import type { ReactNode } from 'react'
 
@@ -37,6 +38,26 @@ function RequireAuth({ children }: { children: ReactNode }) {
   }
 
   if (!user) return <Navigate to="/login" replace />
+
+  return <>{children}</>
+}
+
+/**
+ * Protege rotas exclusivas de administradores: redireciona não-admins para /.
+ */
+function RequireAdmin({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-[15px] text-ink-muted">Carregando…</p>
+      </div>
+    )
+  }
+
+  if (!user) return <Navigate to="/login" replace />
+  if (user.role !== 'admin') return <Navigate to="/" replace />
 
   return <>{children}</>
 }
@@ -73,6 +94,15 @@ function App() {
               <Route path="agenda" element={<SchedulePage />} />
               <Route path="trends" element={<TrendsPage />} />
               <Route path="noticias-medicas" element={<MedicalNewsPage />} />
+              <Route path="noticias" element={<MedicalNewsPage />} />
+              <Route
+                path="central-de-sites"
+                element={
+                  <RequireAdmin>
+                    <CentralDeSitesPage />
+                  </RequireAdmin>
+                }
+              />
               <Route path="twitter-posts" element={<TwitterPostsPage />} />
               <Route path="branding" element={<BrandingPage />} />
               <Route path="tiktok" element={<TikTokAccountsPage />} />

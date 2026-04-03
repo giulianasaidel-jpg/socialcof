@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
+import { useAuth } from '../context/AuthContext'
 
 type NavItem = { to: string; label: string; end?: boolean; locked?: boolean }
 type NavGroup = { label: string; items: NavItem[] }
@@ -8,6 +9,7 @@ const topNavItems: NavItem[] = [
   { to: '/', label: 'Painel geral', end: true },
   { to: '/central-de-perfis', label: 'Central de perfis' },
   { to: '/branding', label: 'Branding' },
+  { to: '/noticias', label: 'Atualizações Sites' },
 ]
 
 const navGroups: NavGroup[] = [
@@ -21,6 +23,7 @@ const navGroups: NavGroup[] = [
 
 const adminNavItems: NavItem[] = [
   { to: '/admin', label: 'Painel admin', end: true },
+  { to: '/central-de-sites', label: 'Central de Sites' },
 ]
 
 function NavItemEl({ item }: { item: NavItem }) {
@@ -56,6 +59,8 @@ function NavItemEl({ item }: { item: NavItem }) {
  */
 export function Sidebar() {
   const { theme, toggleTheme } = useTheme()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
 
   return (
     <aside className="flex w-[260px] shrink-0 flex-col border-r border-ink/10 bg-white/70 px-4 py-6 shadow-[4px_0_32px_rgba(28,29,32,0.06)] backdrop-blur-2xl dark:bg-[#1c1d20]/95 dark:shadow-[4px_0_32px_rgba(0,0,0,0.3)]">
@@ -84,28 +89,30 @@ export function Sidebar() {
           </div>
         ))}
 
-        <div>
-          <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-            Administração
-          </p>
-          <div className="flex flex-col gap-0.5">
-            {adminNavItems.map(({ to, label, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end === true}
-                className={({ isActive }) =>
-                  [
-                    'rounded-xl px-3 py-2 text-[14px] font-medium transition-colors',
-                    isActive ? 'bg-brand/10 text-brand' : 'text-ink hover:bg-ink/[0.04]',
-                  ].join(' ')
-                }
-              >
-                {label}
-              </NavLink>
-            ))}
+        {isAdmin && (
+          <div>
+            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+              Administração
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {adminNavItems.map(({ to, label, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end === true}
+                  className={({ isActive }) =>
+                    [
+                      'rounded-xl px-3 py-2 text-[14px] font-medium transition-colors',
+                      isActive ? 'bg-brand/10 text-brand' : 'text-ink hover:bg-ink/[0.04]',
+                    ].join(' ')
+                  }
+                >
+                  {label}
+                </NavLink>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </nav>
 
       <div className="mt-auto space-y-3">

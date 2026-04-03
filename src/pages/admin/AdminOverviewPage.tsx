@@ -17,6 +17,21 @@ type DiscoveredAccount = {
   followers: number
   status: string
   workspace: string
+  profilePicS3Url: string | null
+  brandColors: string[]
+  referenceImages: string[]
+}
+
+type BulkDiscoverResult = {
+  handle: string
+  status: 'created' | 'updated' | 'failed'
+  account?: DiscoveredAccount
+  error?: string
+}
+
+type BulkDiscoverResponse = {
+  summary: { total: number; created: number; updated: number; failed: number }
+  results: BulkDiscoverResult[]
 }
 
 /**
@@ -52,6 +67,12 @@ export function AdminOverviewPage() {
   const [discovered, setDiscovered] = useState<DiscoveredAccount | null>(null)
   const [syncLoading, setSyncLoading] = useState(false)
   const [syncDone, setSyncDone] = useState(false)
+
+  const [bulkHandles, setBulkHandles] = useState('')
+  const [bulkWorkspace, setBulkWorkspace] = useState('medcof')
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkError, setBulkError] = useState('')
+  const [bulkResponse, setBulkResponse] = useState<BulkDiscoverResponse | null>(null)
 
   useEffect(() => {
     api
@@ -158,11 +179,7 @@ export function AdminOverviewPage() {
       setDiscoverHandle('')
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('409')) {
-        setDiscoverError('Esta conta já existe no banco.')
-      } else {
-        setDiscoverError(`Erro: ${msg}`)
-      }
+      setDiscoverError(`Erro: ${msg}`)
     } finally {
       setDiscoverLoading(false)
     }
@@ -177,6 +194,37 @@ export function AdminOverviewPage() {
     } catch {}
     finally {
       setSyncLoading(false)
+    }
+  }
+
+  /**
+   * Envia múltiplos handles para POST /instagram-accounts/bulk-discover.
+   */
+  async function bulkDiscoverAccounts(e: FormEvent) {
+    e.preventDefault()
+    setBulkError('')
+    setBulkResponse(null)
+    const handles = bulkHandles
+      .split(/[\n,]+/)
+      .map((h) => h.trim().replace(/^@/, ''))
+      .filter(Boolean)
+    if (handles.length === 0) {
+      setBulkError('Informe ao menos um handle.')
+      return
+    }
+    setBulkLoading(true)
+    try {
+      const response = await api.post<BulkDiscoverResponse>(
+        '/instagram-accounts/bulk-discover',
+        { handles, workspace: bulkWorkspace },
+      )
+      setBulkResponse(response)
+      setBulkHandles('')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setBulkError(`Erro: ${msg}`)
+    } finally {
+      setBulkLoading(false)
     }
   }
 
@@ -261,26 +309,39 @@ export function AdminOverviewPage() {
         {discovered && (
           <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-400">
-              Conta criada com sucesso
+              Conta salva com sucesso
             </p>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[15px] font-semibold text-ink">
-                  {discovered.displayName}
-                </p>
-                <p className="text-[13px] text-ink-muted">
-                  @{discovered.handle} ·{' '}
-                  {discovered.followers.toLocaleString('pt-BR')} seguidores ·{' '}
-                  workspace: {discovered.workspace}
-                </p>
-                <a
-                  href={discovered.profileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-block text-[13px] text-brand hover:underline"
-                >
-                  Abrir perfil
-                </a>
+              <div className="flex items-center gap-3">
+                {discovered.profilePicS3Url ? (
+                  <img
+                    src={discovered.profilePicS3Url}
+                    alt={discovered.handle}
+                    className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-ink/[0.06]"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-purple-600 text-base font-bold text-white">
+                    {discovered.handle[0].toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <p className="text-[15px] font-semibold text-ink">
+                    {discovered.displayName}
+                  </p>
+                  <p className="text-[13px] text-ink-muted">
+                    @{discovered.handle} ·{' '}
+                    {discovered.followers.toLocaleString('pt-BR')} seguidores ·{' '}
+                    workspace: {discovered.workspace}
+                  </p>
+                  <a
+                    href={discovered.profileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-block text-[13px] text-brand hover:underline"
+                  >
+                    Abrir perfil
+                  </a>
+                </div>
               </div>
               <button
                 type="button"
@@ -295,6 +356,127 @@ export function AdminOverviewPage() {
                     : 'Sincronizar posts'}
               </button>
             </div>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+        <h2 className="text-lg font-semibold tracking-tight text-ink">
+          Descobrir contas em lote
+        </h2>
+        <p className="mt-1 text-[13px] text-ink-muted">
+          Informe um handle por linha (ou separados por vírgula). Cada conta é processada em
+          sequência — falhas individuais não interrompem o lote.
+        </p>
+
+        <form
+          onSubmit={(e) => void bulkDiscoverAccounts(e)}
+          className="mt-6 grid gap-4 sm:grid-cols-[1fr_auto_auto]"
+        >
+          <div className="sm:col-span-3">
+            <label htmlFor="bulk-handles" className="text-sm font-medium text-ink">
+              Handles
+            </label>
+            <textarea
+              id="bulk-handles"
+              value={bulkHandles}
+              onChange={(e) => { setBulkHandles(e.target.value); setBulkError('') }}
+              placeholder={'oslermedicina\ndr.joaosilva\nmedcoficial'}
+              rows={4}
+              className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[14px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            />
+          </div>
+          <div>
+            <label htmlFor="bulk-workspace" className="text-sm font-medium text-ink">
+              Workspace
+            </label>
+            <input
+              id="bulk-workspace"
+              value={bulkWorkspace}
+              onChange={(e) => setBulkWorkspace(e.target.value)}
+              placeholder="medcof"
+              className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              type="submit"
+              disabled={bulkLoading}
+              className="rounded-full bg-brand px-6 py-3 text-[15px] font-medium text-white hover:bg-brand-hover disabled:opacity-60 active:scale-[0.98]"
+            >
+              {bulkLoading ? 'Processando…' : 'Descobrir em lote'}
+            </button>
+          </div>
+        </form>
+
+        {bulkError && (
+          <p className="mt-3 text-[13px] text-red-700">{bulkError}</p>
+        )}
+
+        {bulkResponse && (
+          <div className="mt-6 space-y-4">
+            <div className="flex flex-wrap gap-3">
+              {(
+                [
+                  { label: 'Total', value: bulkResponse.summary.total, color: 'bg-ink/[0.06] text-ink' },
+                  { label: 'Criados', value: bulkResponse.summary.created, color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400' },
+                  { label: 'Atualizados', value: bulkResponse.summary.updated, color: 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-400' },
+                  { label: 'Falhas', value: bulkResponse.summary.failed, color: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400' },
+                ] as const
+              ).map(({ label, value, color }) => (
+                <div key={label} className={`rounded-xl px-4 py-2 text-[13px] font-medium ${color}`}>
+                  {label}: {value}
+                </div>
+              ))}
+            </div>
+
+            <ul className="divide-y divide-ink/[0.06] rounded-xl border border-ink/[0.06] bg-surface">
+              {bulkResponse.results.map((r) => (
+                <li key={r.handle} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    {r.account?.profilePicS3Url ? (
+                      <img
+                        src={r.account.profilePicS3Url}
+                        alt={r.handle}
+                        className="h-8 w-8 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-purple-600 text-xs font-bold text-white">
+                        {r.handle[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[14px] font-medium text-ink">
+                        {r.account?.displayName ?? `@${r.handle}`}
+                      </p>
+                      <p className="text-[12px] text-ink-muted">@{r.handle}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {r.account && (
+                      <span className="text-[12px] text-ink-muted">
+                        {r.account.followers.toLocaleString('pt-BR')} seg.
+                      </span>
+                    )}
+                    <span
+                      className={[
+                        'rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
+                        r.status === 'created'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
+                          : r.status === 'updated'
+                            ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-400'
+                            : 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400',
+                      ].join(' ')}
+                    >
+                      {r.status}
+                    </span>
+                    {r.error && (
+                      <span className="text-[12px] text-red-600">{r.error}</span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </section>

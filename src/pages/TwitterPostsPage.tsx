@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, getAccessToken } from '../lib/api'
-import { GeneratePanel, TwitterLikePost } from '../components/GeneratePanel'
+import { GeneratePanel, type TwitterLikePost } from '../components/GeneratePanel'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', {
