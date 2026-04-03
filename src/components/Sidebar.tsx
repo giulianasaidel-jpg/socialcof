@@ -2,23 +2,54 @@ import { NavLink } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 
 type NavItem = { to: string; label: string; end?: boolean; locked?: boolean }
+type NavGroup = { label: string; items: NavItem[] }
 
-const navItems: NavItem[] = [
-  { to: '/', label: 'Visão geral', end: true },
-  { to: '/criar', label: 'Novo conteúdo', locked: true },
-  { to: '/rascunhos', label: 'Rascunhos', locked: true },
-  { to: '/concorrencia', label: 'Concorrência', locked: true },
-  { to: '/produtos', label: 'Produtos', locked: true },
-  { to: '/agenda', label: 'Agenda', locked: true },
-  { to: '/trends', label: 'Trends', locked: true },
-  { to: '/noticias-medicas', label: 'Notícias médicas' },
-  { to: '/twitter-posts', label: 'Twitter Posts' },
+const topNavItems: NavItem[] = [
+  { to: '/', label: 'Painel geral', end: true },
+  { to: '/central-de-perfis', label: 'Central de perfis' },
   { to: '/branding', label: 'Branding' },
+]
+
+const navGroups: NavGroup[] = [
+  {
+    label: 'Design templates',
+    items: [
+      { to: '/twitter-posts', label: 'Twitter-like posts' },
+    ],
+  },
 ]
 
 const adminNavItems: NavItem[] = [
   { to: '/admin', label: 'Painel admin', end: true },
 ]
+
+function NavItemEl({ item }: { item: NavItem }) {
+  if (item.locked) {
+    return (
+      <span className="flex items-center justify-between rounded-xl px-3 py-2 text-[14px] font-medium text-ink/30 cursor-not-allowed select-none">
+        {item.label}
+        <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink/40">
+          Em breve
+        </span>
+      </span>
+    )
+  }
+
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end === true}
+      className={({ isActive }) =>
+        [
+          'rounded-xl px-3 py-2 text-[14px] font-medium transition-colors',
+          isActive ? 'bg-brand/10 text-brand' : 'text-ink hover:bg-ink/[0.04]',
+        ].join(' ')
+      }
+    >
+      {item.label}
+    </NavLink>
+  )
+}
 
 /**
  * Navegação lateral principal do protótipo Social Cof.
@@ -33,41 +64,28 @@ export function Sidebar() {
         <span className="text-[24px] font-extrabold tracking-tight text-ink">SocialCof</span>
       </div>
 
-
-      <nav className="flex flex-1 flex-col gap-6" aria-label="Principal">
+      <nav className="flex flex-1 flex-col gap-5" aria-label="Principal">
         <div className="flex flex-col gap-0.5">
-          {navItems.map(({ to, label, end, locked }) =>
-            locked ? (
-              <span
-                key={to}
-                className="flex items-center justify-between rounded-xl px-3 py-2.5 text-[15px] font-medium text-ink/30 cursor-not-allowed select-none"
-              >
-                {label}
-                <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink/40">
-                  Em breve
-                </span>
-              </span>
-            ) : (
-              <NavLink
-                key={to}
-                to={to}
-                end={end === true}
-                className={({ isActive }) =>
-                  [
-                    'rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors',
-                    isActive
-                      ? 'bg-brand/10 text-brand'
-                      : 'text-ink hover:bg-ink/[0.04]',
-                  ].join(' ')
-                }
-              >
-                {label}
-              </NavLink>
-            )
-          )}
+          {topNavItems.map((item) => (
+            <NavItemEl key={item.to} item={item} />
+          ))}
         </div>
+
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+              {group.label}
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {group.items.map((item) => (
+                <NavItemEl key={item.to} item={item} />
+              ))}
+            </div>
+          </div>
+        ))}
+
         <div>
-          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+          <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
             Administração
           </p>
           <div className="flex flex-col gap-0.5">
@@ -78,10 +96,8 @@ export function Sidebar() {
                 end={end === true}
                 className={({ isActive }) =>
                   [
-                    'rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors',
-                    isActive
-                      ? 'bg-brand/10 text-brand'
-                      : 'text-ink hover:bg-ink/[0.04]',
+                    'rounded-xl px-3 py-2 text-[14px] font-medium transition-colors',
+                    isActive ? 'bg-brand/10 text-brand' : 'text-ink hover:bg-ink/[0.04]',
                   ].join(' ')
                 }
               >
@@ -91,6 +107,7 @@ export function Sidebar() {
           </div>
         </div>
       </nav>
+
       <div className="mt-auto space-y-3">
         <button
           type="button"

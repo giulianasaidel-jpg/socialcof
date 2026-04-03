@@ -52,6 +52,7 @@ function toMedCofAccount(a: ApiInstagramAccount): MedCofInstagramAccount {
     displayName: a.displayName,
     profileUrl: `https://www.instagram.com/${a.handle}/`,
     followers: a.followers ?? 0,
+    workspace: a.workspace,
   }
 }
 
