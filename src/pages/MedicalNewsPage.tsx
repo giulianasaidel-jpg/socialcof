@@ -1,209 +1,368 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { DiscoveryToolbar } from '../components/DiscoveryToolbar'
-import { useAppWorkspace } from '../context/AppWorkspaceContext'
-import { usePaginatedList } from '../hooks/usePaginatedList'
+import { useEffect, useRef, useState } from 'react'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import {
-  type CreatePagePrefill,
-  setCreatePrefill,
-} from '../services/createPrefill'
-import {
-  buildBriefingFromNews,
+  buildMedicalNewsSseUrl,
   fetchMedicalNews,
-  productIdForAccount,
   type MedicalNewsItem,
+  type NewsCategory,
+  type NewsLanguage,
 } from '../services/discovery'
 
-const PAGE_SIZE = 5
+const CATEGORY_META: Record<NewsCategory, { label: string; color: string }> = {
+  journal:    { label: 'Revistas',   color: '#6366f1' },
+  guidelines: { label: 'Diretrizes', color: '#f59e0b' },
+  government: { label: 'Governo',    color: '#3b82f6' },
+  education:  { label: 'Educação',   color: '#10b981' },
+  research:   { label: 'Pesquisa',   color: '#8b5cf6' },
+  global:     { label: 'Global',     color: '#ef4444' },
+}
+
+const ALL_CATEGORIES: NewsCategory[] = [
+  'journal',
+  'guidelines',
+  'government',
+  'education',
+  'research',
+  'global',
+]
 
 /**
- * Lista notícias médicas recentes indexadas pelo crawler, com paginação e geração de post por perfil.
+ * Feed de notícias médicas estilo Twitter com SSE, filtros e paginação.
  */
 export function MedicalNewsPage() {
-  const navigate = useNavigate()
-  const { instagramAccounts, products } = useAppWorkspace()
   const [items, setItems] = useState<MedicalNewsItem[]>([])
+  const [pendingItems, setPendingItems] = useState<MedicalNewsItem[]>([])
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
-  const [selectedAccountId, setSelectedAccountId] = useState(
-    () => instagramAccounts[0]?.id ?? '',
-  )
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [category, setCategory] = useState<NewsCategory | null>(null)
+  const [language, setLanguage] = useState<NewsLanguage | null>(null)
+  const [sseConnected, setSseConnected] = useState(false)
+  const sseRef = useRef<EventSource | null>(null)
 
-  const {
-    page,
-    setPage,
-    pageItems,
-    totalPages,
-    rangeLabel,
-  } = usePaginatedList(items, PAGE_SIZE)
-
-  const load = useCallback(async () => {
+  useEffect(() => {
     setLoading(true)
-    setError(null)
-    try {
-      const data = await fetchMedicalNews()
-      setItems(data)
-      setPage(1)
-      setUpdatedAt(new Date().toISOString())
-    } catch {
-      setError('Não foi possível carregar as notícias. Tente novamente.')
-    } finally {
-      setLoading(false)
-    }
-  }, [setPage])
+    setItems([])
+    setPendingItems([])
+    setPage(1)
+
+    fetchMedicalNews({
+      page: 1,
+      limit: 20,
+      category: category ?? undefined,
+      language: language ?? undefined,
+    })
+      .then(({ data, totalPages: tp }) => {
+        setItems(data)
+        setTotalPages(tp)
+      })
+      .finally(() => setLoading(false))
+  }, [category, language])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    const url = buildMedicalNewsSseUrl()
+    if (!url) return
 
-  useEffect(() => {
-    if (
-      selectedAccountId &&
-      !instagramAccounts.some((a) => a.id === selectedAccountId)
-    ) {
-      setSelectedAccountId(instagramAccounts[0]?.id ?? '')
+    const es = new EventSource(url)
+    sseRef.current = es
+
+    es.onopen = () => setSseConnected(true)
+    es.onerror = () => setSseConnected(false)
+
+    es.onmessage = (event) => {
+      try {
+        const news = JSON.parse(event.data as string) as MedicalNewsItem
+        const matchCategory = !category || news.category === category
+        const matchLanguage = !language || news.language === language
+        if (matchCategory && matchLanguage) {
+          setPendingItems((prev) => [news, ...prev])
+        }
+      } catch {
+        // ignore malformed events
+      }
     }
-  }, [instagramAccounts, selectedAccountId])
 
-  const hasApi = Boolean(import.meta.env.VITE_CRAWLER_API_BASE)
-
-  const selectedAccount = instagramAccounts.find(
-    (a) => a.id === selectedAccountId,
-  )
-
-  const goToCreateWithNews = (news: MedicalNewsItem) => {
-    if (!selectedAccount) return
-    const briefing = buildBriefingFromNews(news, selectedAccount)
-    const pid = productIdForAccount(products, selectedAccount.id)
-    const payload: CreatePagePrefill = {
-      accountId: selectedAccount.id,
-      postBriefing: briefing,
-      ...(pid ? { productId: pid } : {}),
+    return () => {
+      es.close()
+      sseRef.current = null
+      setSseConnected(false)
     }
-    setCreatePrefill(payload)
-    navigate('/criar', { state: { createPrefill: payload } })
+  }, [category, language])
+
+  function showPendingItems() {
+    setItems((prev) => [...pendingItems, ...prev])
+    setPendingItems([])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const accountOptions = instagramAccounts.map((a) => ({
-    id: a.id,
-    label: `${a.displayName} (@${a.handle})`,
-  }))
+  async function loadMore() {
+    if (loadingMore || page >= totalPages) return
+    setLoadingMore(true)
+    const nextPage = page + 1
+    const { data } = await fetchMedicalNews({
+      page: nextPage,
+      limit: 20,
+      category: category ?? undefined,
+      language: language ?? undefined,
+    })
+    setItems((prev) => [...prev, ...data])
+    setPage(nextPage)
+    setLoadingMore(false)
+  }
 
   return (
-    <div className="space-y-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-ink">
-            Notícias médicas
-          </h1>
-          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">
-            Curadoria automática das últimas manchetes de fontes confiáveis. O
-            crawler agrega RSS e páginas permitidas; revise sempre antes de
-            publicar.
-          </p>
+    <div className="pb-16">
+      <div className="mx-auto max-w-[600px]">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold tracking-tight text-ink">🩺 MedFeed</h1>
+          <LiveIndicator connected={sseConnected} />
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="shrink-0 rounded-xl bg-brand px-4 py-2.5 text-[15px] font-medium text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
-        >
-          {loading ? 'Atualizando…' : 'Atualizar lista'}
-        </button>
-      </header>
 
-      <DiscoveryToolbar
-        profileLabel="Perfil / médico para o post"
-        profileHint="O briefing será gerado para esta conta Instagram."
-        accountSelectId="news-target-account"
-        accountValue={selectedAccountId}
-        onAccountChange={setSelectedAccountId}
-        accountOptions={accountOptions}
-        rangeLabel={rangeLabel}
-        page={page}
-        totalPages={totalPages}
-        onPrev={() => setPage((p) => Math.max(1, p - 1))}
-        onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-        disabledPrev={page <= 1}
-        disabledNext={page >= totalPages}
-      />
+        <FilterTabs
+          activeCategory={category}
+          activeLanguage={language}
+          onCategory={setCategory}
+          onLanguage={setLanguage}
+        />
 
-      <div className="rounded-2xl border border-ink/10 bg-card/90 p-4 text-[13px] leading-relaxed text-ink-muted shadow-[0_2px_12px_rgba(28,29,32,0.06)]">
-        <p>
-          <span className="font-medium text-ink">Fonte:</span>{' '}
-          {hasApi
-            ? 'API do crawler (`VITE_CRAWLER_API_BASE`).'
-            : 'Modo demonstração — configure `VITE_CRAWLER_API_BASE` com GET `/medical-news`.'}
-        </p>
-        {updatedAt && (
-          <p className="mt-1 text-ink-subtle">
-            Última atualização na interface:{' '}
-            {new Date(updatedAt).toLocaleString('pt-BR')}
-          </p>
+        {pendingItems.length > 0 && (
+          <button
+            type="button"
+            onClick={showPendingItems}
+            className="mt-3 w-full rounded-full bg-[#1d9bf0] py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[#1a8cd8]"
+          >
+            ↑ {pendingItems.length}{' '}
+            {pendingItems.length === 1 ? 'nova notícia' : 'novas notícias'}
+          </button>
         )}
-      </div>
 
-      {error && (
-        <p className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-3 text-[15px] text-ink">
-          {error}
-        </p>
-      )}
+        {loading ? (
+          <FeedSkeleton />
+        ) : (
+          <>
+            {items.length === 0 ? (
+              <div className="py-16 text-center text-[14px] text-ink-muted">
+                Nenhuma notícia encontrada para os filtros selecionados.
+              </div>
+            ) : (
+              items.map((item) => <NewsCard key={item.id} item={item} />)
+            )}
 
-      {loading && items.length === 0 ? (
-        <ul className="grid gap-4 md:grid-cols-2">
-          {[1, 2, 3, 4].map((k) => (
-            <li
-              key={k}
-              className="h-40 animate-pulse rounded-2xl bg-ink/[0.06]"
-            />
-          ))}
-        </ul>
-      ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
-          {pageItems.map((n) => (
-            <li
-              key={n.id}
-              className="flex flex-col rounded-2xl border border-ink/10 bg-card p-5 shadow-[0_2px_12px_rgba(28,29,32,0.06)]"
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                {n.source}
-              </p>
-              <h2 className="mt-2 text-[17px] font-semibold leading-snug text-ink">
-                {n.title}
-              </h2>
-              <p className="mt-2 flex-1 text-[14px] leading-relaxed text-ink-muted">
-                {n.summary}
-              </p>
-              <p className="mt-3 text-[12px] text-ink-subtle">
-                {new Date(n.publishedAt).toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                })}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <a
-                  href={n.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex text-[15px] font-medium text-brand hover:underline"
-                >
-                  Abrir matéria
-                </a>
+            {page < totalPages && (
+              <div className="py-4">
                 <button
                   type="button"
-                  onClick={() => goToCreateWithNews(n)}
-                  disabled={!selectedAccount}
-                  className="rounded-xl bg-brand px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void loadMore()}
+                  disabled={loadingMore}
+                  className="w-full rounded-full border border-ink/10 py-3.5 text-[14px] font-semibold text-[#1d9bf0] transition-colors hover:bg-ink/[0.03] disabled:opacity-60"
                 >
-                  Gerar post
+                  {loadingMore ? 'Carregando…' : 'Carregar mais'}
                 </button>
               </div>
-            </li>
-          ))}
-        </ul>
-      )}
+            )}
+          </>
+        )}
+      </div>
     </div>
+  )
+}
+
+function LiveIndicator({ connected }: { connected: boolean }) {
+  return (
+    <span
+      className={[
+        'text-[12px] font-semibold',
+        connected
+          ? 'animate-[livePulse_2s_ease-in-out_infinite] text-[#00ba7c]'
+          : 'text-ink-muted',
+      ].join(' ')}
+    >
+      {connected ? '● ao vivo' : '○ offline'}
+    </span>
+  )
+}
+
+function FilterTabs({
+  activeCategory,
+  activeLanguage,
+  onCategory,
+  onLanguage,
+}: {
+  activeCategory: NewsCategory | null
+  activeLanguage: NewsLanguage | null
+  onCategory: (c: NewsCategory | null) => void
+  onLanguage: (l: NewsLanguage | null) => void
+}) {
+  return (
+    <div className="mb-2 border-b border-ink/[0.08]">
+      <div className="flex gap-1.5 overflow-x-auto pb-3">
+        <TabPill
+          active={activeCategory === null}
+          onClick={() => onCategory(null)}
+          label="Para você"
+        />
+        {ALL_CATEGORIES.map((cat) => (
+          <TabPill
+            key={cat}
+            active={activeCategory === cat}
+            onClick={() => onCategory(activeCategory === cat ? null : cat)}
+            label={CATEGORY_META[cat].label}
+          />
+        ))}
+      </div>
+      <div className="flex gap-1.5 pb-3">
+        <TabPill
+          active={activeLanguage === null}
+          onClick={() => onLanguage(null)}
+          label="Todos"
+          small
+        />
+        <TabPill
+          active={activeLanguage === 'pt'}
+          onClick={() => onLanguage(activeLanguage === 'pt' ? null : 'pt')}
+          label="🇧🇷 PT"
+          small
+        />
+        <TabPill
+          active={activeLanguage === 'en'}
+          onClick={() => onLanguage(activeLanguage === 'en' ? null : 'en')}
+          label="🇺🇸 EN"
+          small
+        />
+      </div>
+    </div>
+  )
+}
+
+function TabPill({
+  active,
+  onClick,
+  label,
+  small = false,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  small?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        'shrink-0 rounded-full border font-medium transition-colors',
+        small ? 'px-3 py-1 text-[12px]' : 'px-3.5 py-1.5 text-[13px]',
+        active
+          ? 'border-transparent bg-ink text-surface'
+          : 'border-ink/[0.1] text-ink-muted hover:border-ink/20 hover:text-ink',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  )
+}
+
+function NewsCard({ item }: { item: MedicalNewsItem }) {
+  const meta = CATEGORY_META[item.category]
+  const timeAgo = formatDistanceToNow(new Date(item.publishedAt), {
+    addSuffix: false,
+    locale: ptBR,
+  })
+
+  return (
+    <article className="animate-[slideDown_0.25s_ease] border-b border-ink/[0.08] py-4">
+      <div className="mb-2.5 flex items-center gap-2.5">
+        <SourceAvatar source={item.source} category={item.category} />
+        <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="truncate text-[15px] font-bold text-ink">
+            {item.source}
+          </span>
+          <span className="shrink-0 text-[14px] text-ink-muted">· {timeAgo}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span
+            className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-white"
+            style={{ backgroundColor: meta.color }}
+          >
+            {meta.label}
+          </span>
+          <span className="rounded-full bg-ink/[0.06] px-2.5 py-0.5 text-[11px] font-semibold text-ink-muted dark:bg-white/[0.08]">
+            {item.language.toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      <h3 className="mb-1.5 line-clamp-2 text-[15px] font-bold leading-snug text-ink">
+        {item.title}
+      </h3>
+
+      {item.summary && (
+        <p className="mb-3 line-clamp-3 text-[14px] leading-relaxed text-ink-muted">
+          {item.summary}
+        </p>
+      )}
+
+      <div className="flex justify-end">
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[14px] font-medium text-[#1d9bf0] hover:underline"
+        >
+          Ler artigo ↗
+        </a>
+      </div>
+    </article>
+  )
+}
+
+function SourceAvatar({
+  source,
+  category,
+}: {
+  source: string
+  category: NewsCategory
+}) {
+  const initials = source
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+  const color = CATEGORY_META[category].color
+
+  return (
+    <div
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white"
+      style={{ backgroundColor: color }}
+    >
+      {initials}
+    </div>
+  )
+}
+
+function FeedSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="border-b border-ink/[0.08] py-4">
+          <div className="mb-2.5 flex items-center gap-2.5">
+            <div className="h-9 w-9 animate-pulse rounded-full bg-ink/[0.08]" />
+            <div className="h-4 w-28 animate-pulse rounded bg-ink/[0.08]" />
+            <div className="ml-auto h-5 w-16 animate-pulse rounded-full bg-ink/[0.08]" />
+          </div>
+          <div className="mb-1.5 h-5 w-full animate-pulse rounded bg-ink/[0.08]" />
+          <div className="mb-3 space-y-1.5">
+            <div className="h-4 w-full animate-pulse rounded bg-ink/[0.08]" />
+            <div className="h-4 w-4/5 animate-pulse rounded bg-ink/[0.08]" />
+          </div>
+          <div className="flex justify-end">
+            <div className="h-4 w-20 animate-pulse rounded bg-ink/[0.08]" />
+          </div>
+        </div>
+      ))}
+    </>
   )
 }

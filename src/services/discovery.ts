@@ -1,4 +1,4 @@
-import { api as _api } from '../lib/api'
+import { api as _api, getAccessToken } from '../lib/api'
 
 export type TikTokTrendItem = {
   id: string
@@ -14,14 +14,42 @@ export type TikTokTrendItem = {
   fetchedAt: string
 }
 
+export type NewsCategory =
+  | 'education'
+  | 'government'
+  | 'journal'
+  | 'guidelines'
+  | 'research'
+  | 'global'
+
+export type NewsLanguage = 'pt' | 'en'
+
 export type MedicalNewsItem = {
   id: string
   title: string
   summary: string
   source: string
   url: string
+  category: NewsCategory
+  language: NewsLanguage
   /** ISO 8601 da publicação original. */
   publishedAt: string
+}
+
+export type MedicalNewsResponse = {
+  data: MedicalNewsItem[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+export type FetchNewsParams = {
+  page?: number
+  limit?: number
+  category?: NewsCategory
+  language?: NewsLanguage
+  source?: string
+  dateFrom?: string
 }
 
 /** Conta Instagram usada para montar o briefing de “Gerar post”. */
@@ -120,8 +148,10 @@ const mockMedicalNews: MedicalNewsItem[] = [
     title: 'Novas diretrizes sobre prevenção cardiovascular são publicadas',
     summary:
       'Sociedades médicas divulgam atualização com foco em fatores de risco modificáveis e rastreamento.',
-    source: 'Simulação — crawler',
+    source: 'SBC',
     url: 'https://www.cfm.org.br/',
+    category: 'guidelines',
+    language: 'pt',
     publishedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
   },
   {
@@ -129,8 +159,10 @@ const mockMedicalNews: MedicalNewsItem[] = [
     title: 'Estudo discute adesão ao tratamento em condições crônicas',
     summary:
       'Revisão sistemática reforça papel da educação em saúde e do acompanhamento multiprofissional.',
-    source: 'Simulação — crawler',
+    source: 'SciELO',
     url: 'https://www.scielo.br/',
+    category: 'research',
+    language: 'pt',
     publishedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
   },
   {
@@ -138,17 +170,21 @@ const mockMedicalNews: MedicalNewsItem[] = [
     title: 'Alerta sanitário: orientações para temporada de viagens',
     summary:
       'Órgãos de saúde recomendam calendário vacinal atualizado e cuidados com hidratação.',
-    source: 'Simulação — crawler',
+    source: 'Ministério da Saúde',
     url: 'https://www.gov.br/saude/pt-br',
+    category: 'government',
+    language: 'pt',
     publishedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
   },
   {
     id: 'nw-4',
-    title: 'Pesquisa destaca impacto da atividade física no controle glicêmico',
+    title: 'Physical activity and glycaemic control: updated meta-analysis',
     summary:
-      'Metanálise reforça benefícios moderados com acompanhamento médico individualizado.',
-    source: 'Simulação — crawler',
-    url: 'https://www.cfm.org.br/',
+      'Meta-analysis reinforces moderate-intensity exercise benefits with individualised medical follow-up.',
+    source: 'NEJM',
+    url: 'https://www.nejm.org/',
+    category: 'journal',
+    language: 'en',
     publishedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
   },
   {
@@ -156,8 +192,10 @@ const mockMedicalNews: MedicalNewsItem[] = [
     title: 'Novas recomendações para rastreamento de certos cânceres',
     summary:
       'Documento técnico atualiza faixas etárias e critérios — sujeito a protocolos locais.',
-    source: 'Simulação — crawler',
+    source: 'Gov.br Saúde',
     url: 'https://www.gov.br/saude/pt-br',
+    category: 'government',
+    language: 'pt',
     publishedAt: new Date(Date.now() - 86400000 * 4).toISOString(),
   },
   {
@@ -165,17 +203,21 @@ const mockMedicalNews: MedicalNewsItem[] = [
     title: 'Telemedicina: estudo analisa satisfação de pacientes crônicos',
     summary:
       'Resultados mistos apontam necessidade de combinar canais digitais e presenciais.',
-    source: 'Simulação — crawler',
+    source: 'SciELO',
     url: 'https://www.scielo.br/',
+    category: 'research',
+    language: 'pt',
     publishedAt: new Date(Date.now() - 86400000 * 6).toISOString(),
   },
   {
     id: 'nw-7',
-    title: 'Campanha reforça importância da vacinação em gestantes',
+    title: 'WHO global report on infectious disease preparedness',
     summary:
-      'Material educativo destaca calendário e esclarece dúvidas frequentes.',
-    source: 'Simulação — crawler',
-    url: 'https://www.gov.br/saude/pt-br',
+      'Report highlights surveillance gaps and recommends multilateral response frameworks.',
+    source: 'WHO',
+    url: 'https://www.who.int/',
+    category: 'global',
+    language: 'en',
     publishedAt: new Date(Date.now() - 86400000 * 7).toISOString(),
   },
   {
@@ -183,9 +225,33 @@ const mockMedicalNews: MedicalNewsItem[] = [
     title: 'Diretriz discute manejo de dor em contexto ambulatorial',
     summary:
       'Texto enfatiza avaliação multidimensional e cautela com opioides.',
-    source: 'Simulação — crawler',
+    source: 'CFM',
     url: 'https://www.cfm.org.br/',
+    category: 'guidelines',
+    language: 'pt',
     publishedAt: new Date(Date.now() - 86400000 * 8).toISOString(),
+  },
+  {
+    id: 'nw-9',
+    title: 'EBSERH lança edital para residência médica 2027',
+    summary:
+      'Rede federal divulga vagas e calendário para processo seletivo de residência médica.',
+    source: 'EBSERH',
+    url: 'https://www.gov.br/ebserh/',
+    category: 'education',
+    language: 'pt',
+    publishedAt: new Date(Date.now() - 86400000 * 9).toISOString(),
+  },
+  {
+    id: 'nw-10',
+    title: 'ANVISA atualiza bula de anticoagulantes orais diretos',
+    summary:
+      'Agência publica novas orientações sobre interações medicamentosas e populações especiais.',
+    source: 'ANVISA',
+    url: 'https://www.gov.br/anvisa/',
+    category: 'government',
+    language: 'pt',
+    publishedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
   },
 ]
 
@@ -226,22 +292,106 @@ export async function fetchTikTokTrends(): Promise<TikTokTrendItem[]> {
 }
 
 /**
- * Busca últimas notícias médicas indexadas pelo crawler (GET JSON).
+ * Busca notícias médicas paginadas do crawler (GET /medical-news).
  * Sem URL configurada ou em falha, retorna dados de demonstração.
  */
-export async function fetchMedicalNews(): Promise<MedicalNewsItem[]> {
+export async function fetchMedicalNews(
+  params: FetchNewsParams = {},
+): Promise<MedicalNewsResponse> {
+  const mockFallback: MedicalNewsResponse = {
+    data: structuredClone(mockMedicalNews),
+    total: mockMedicalNews.length,
+    page: 1,
+    totalPages: 1,
+  }
+
   const base = apiBaseUrl()
-  if (!base) return structuredClone(mockMedicalNews)
+  if (!base) return mockFallback
 
   try {
-    const res = await fetch(`${base}/medical-news`, { headers: discoveryHeaders() })
-    if (!res.ok) return structuredClone(mockMedicalNews)
-    const data = (await res.json()) as unknown
-    if (!Array.isArray(data)) return structuredClone(mockMedicalNews)
-    return data as MedicalNewsItem[]
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', String(params.page))
+    if (params.limit) query.set('limit', String(params.limit))
+    if (params.category) query.set('category', params.category)
+    if (params.language) query.set('language', params.language)
+    if (params.source) query.set('source', params.source)
+    if (params.dateFrom) query.set('dateFrom', params.dateFrom)
+
+    const qs = query.toString()
+    const url = `${base}/medical-news${qs ? `?${qs}` : ''}`
+    const res = await fetch(url, { headers: discoveryHeaders() })
+    if (!res.ok) return mockFallback
+    return (await res.json()) as MedicalNewsResponse
   } catch {
-    return structuredClone(mockMedicalNews)
+    return mockFallback
   }
+}
+
+/**
+ * Retorna a lista de fontes disponíveis no banco (GET /medical-news/sources).
+ */
+export async function fetchMedicalNewsSources(): Promise<string[]> {
+  const base = apiBaseUrl()
+  if (!base) return []
+
+  try {
+    const res = await fetch(`${base}/medical-news/sources`, {
+      headers: discoveryHeaders(),
+    })
+    if (!res.ok) return []
+    return (await res.json()) as string[]
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Dispara coleta manual de notícias em background (POST /medical-news/refresh).
+ */
+export async function triggerMedicalNewsRefresh(): Promise<void> {
+  const base = apiBaseUrl()
+  if (!base) return
+
+  await fetch(`${base}/medical-news/refresh`, {
+    method: 'POST',
+    headers: discoveryHeaders(),
+  })
+}
+
+/**
+ * Retorna a URL do endpoint SSE com token de autenticação na query string.
+ * Retorna string vazia quando não há URL de API configurada (modo demo).
+ */
+export function buildMedicalNewsSseUrl(): string {
+  const base = apiBaseUrl()
+  if (!base) return ''
+  const token = getAccessToken()
+  return `${base}/medical-news/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`
+}
+
+/**
+ * Conecta ao SSE de novas notícias (GET /medical-news/stream).
+ * Retorna uma função para fechar a conexão.
+ */
+export function connectMedicalNewsStream(
+  onNews: (item: MedicalNewsItem) => void,
+): () => void {
+  const base = apiBaseUrl()
+  if (!base) return () => {}
+
+  const token = getAccessToken()
+  const url = `${base}/medical-news/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`
+  const source = new EventSource(url)
+
+  source.onmessage = (event) => {
+    try {
+      onNews(JSON.parse(event.data as string) as MedicalNewsItem)
+    } catch {
+      // ignore malformed events
+    }
+  }
+
+  return () => source.close()
 }
 
 /**

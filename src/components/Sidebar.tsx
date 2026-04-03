@@ -1,18 +1,19 @@
 import { NavLink } from 'react-router-dom'
-import { useAppWorkspace } from '../context/AppWorkspaceContext'
 import { useTheme } from '../context/ThemeContext'
 
-type NavItem = { to: string; label: string; end?: boolean }
+type NavItem = { to: string; label: string; end?: boolean; locked?: boolean }
 
 const navItems: NavItem[] = [
   { to: '/', label: 'Visão geral', end: true },
-  { to: '/criar', label: 'Novo conteúdo' },
-  { to: '/rascunhos', label: 'Rascunhos' },
-  { to: '/concorrencia', label: 'Concorrência' },
-  { to: '/produtos', label: 'Produtos' },
-  { to: '/agenda', label: 'Agenda' },
-  { to: '/trends', label: 'Trends' },
+  { to: '/criar', label: 'Novo conteúdo', locked: true },
+  { to: '/rascunhos', label: 'Rascunhos', locked: true },
+  { to: '/concorrencia', label: 'Concorrência', locked: true },
+  { to: '/produtos', label: 'Produtos', locked: true },
+  { to: '/agenda', label: 'Agenda', locked: true },
+  { to: '/trends', label: 'Trends', locked: true },
   { to: '/noticias-medicas', label: 'Notícias médicas' },
+  { to: '/twitter-posts', label: 'Twitter Posts' },
+  { to: '/branding', label: 'Branding' },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -23,101 +24,47 @@ const adminNavItems: NavItem[] = [
  * Navegação lateral principal do protótipo Social Cof.
  */
 export function Sidebar() {
-  const { workspaceId, setWorkspaceId, brandShortName, brandSubtitle } =
-    useAppWorkspace()
   const { theme, toggleTheme } = useTheme()
 
   return (
     <aside className="flex w-[260px] shrink-0 flex-col border-r border-ink/10 bg-white/70 px-4 py-6 shadow-[4px_0_32px_rgba(28,29,32,0.06)] backdrop-blur-2xl dark:bg-[#1c1d20]/95 dark:shadow-[4px_0_32px_rgba(0,0,0,0.3)]">
-      <div
-        className="mb-5 overflow-hidden rounded-3xl bg-[#e8e8ed] p-px shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)] dark:bg-[#2a2b30]"
-        role="group"
-        aria-label="Linha Social Cof"
-      >
-        <div className="flex gap-px">
-          <button
-            type="button"
-            onClick={() => setWorkspaceId('socialcof')}
-            className={[
-              'flex min-h-[34px] flex-1 flex-col items-center justify-center rounded-[23px] px-1 py-1 text-center transition-all duration-200',
-              workspaceId === 'socialcof'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-ink-muted hover:bg-white/60 hover:text-ink dark:hover:bg-white/10',
-            ].join(' ')}
-          >
-            <span
-              className={[
-                'text-[8px] font-medium leading-none',
-                workspaceId === 'socialcof' ? 'text-white/90' : 'opacity-65',
-              ].join(' ')}
-            >
-              Social Cof
-            </span>
-            <span
-              className={[
-                'mt-px text-[10px] font-semibold leading-none tracking-tight',
-                workspaceId === 'socialcof' ? 'text-white' : '',
-              ].join(' ')}
-            >
-              Produtos
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setWorkspaceId('diretoria-medica')}
-            className={[
-              'flex min-h-[34px] flex-1 flex-col items-center justify-center rounded-[23px] px-1 py-1 text-center transition-all duration-200',
-              workspaceId === 'diretoria-medica'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-ink-muted hover:bg-white/60 hover:text-ink dark:hover:bg-white/10',
-            ].join(' ')}
-          >
-            <span
-              className={[
-                'text-[8px] font-medium leading-none',
-                workspaceId === 'diretoria-medica' ? 'text-white/90' : 'opacity-65',
-              ].join(' ')}
-            >
-              Social Cof
-            </span>
-            <span
-              className={[
-                'mt-px text-[10px] font-semibold leading-none tracking-tight',
-                workspaceId === 'diretoria-medica' ? 'text-white' : '',
-              ].join(' ')}
-            >
-              Médicos
-            </span>
-          </button>
-        </div>
+      <div className="mb-6 px-3 flex items-center gap-3">
+        <span className="text-3xl">🩺</span>
+        <span className="text-[24px] font-extrabold tracking-tight text-ink">SocialCof</span>
       </div>
-      <div className="mb-8 px-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-          {brandShortName}
-        </p>
-        <p className="mt-0.5 text-lg font-semibold tracking-tight text-ink">
-          {brandSubtitle}
-        </p>
-      </div>
+
+
       <nav className="flex flex-1 flex-col gap-6" aria-label="Principal">
         <div className="flex flex-col gap-0.5">
-          {navItems.map(({ to, label, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end === true}
-              className={({ isActive }) =>
-                [
-                  'rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors',
-                  isActive
-                    ? 'bg-brand/10 text-brand'
-                    : 'text-ink hover:bg-ink/[0.04]',
-                ].join(' ')
-              }
-            >
-              {label}
-            </NavLink>
-          ))}
+          {navItems.map(({ to, label, end, locked }) =>
+            locked ? (
+              <span
+                key={to}
+                className="flex items-center justify-between rounded-xl px-3 py-2.5 text-[15px] font-medium text-ink/30 cursor-not-allowed select-none"
+              >
+                {label}
+                <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink/40">
+                  Em breve
+                </span>
+              </span>
+            ) : (
+              <NavLink
+                key={to}
+                to={to}
+                end={end === true}
+                className={({ isActive }) =>
+                  [
+                    'rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors',
+                    isActive
+                      ? 'bg-brand/10 text-brand'
+                      : 'text-ink hover:bg-ink/[0.04]',
+                  ].join(' ')
+                }
+              >
+                {label}
+              </NavLink>
+            )
+          )}
         </div>
         <div>
           <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">

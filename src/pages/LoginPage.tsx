@@ -1,12 +1,13 @@
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { GoogleLogin } from '@react-oauth/google'
 import { useAuth } from '../context/AuthContext'
 
 /**
- * Tela de login: autentica via POST /auth/login e redireciona para o dashboard.
+ * Tela de login: autentica via POST /auth/login ou POST /auth/google e redireciona para o dashboard.
  */
 export function LoginPage() {
-  const { login } = useAuth()
+  const { login, loginWithGoogle } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,6 +27,24 @@ export function LoginPage() {
         setError('E-mail ou senha inválidos.')
       } else {
         setError(`Erro ao conectar: ${msg}`)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleGoogleSuccess(credential: string) {
+    setError('')
+    setLoading(true)
+    try {
+      await loginWithGoogle(credential)
+      navigate('/', { replace: true })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('403')) {
+        setError('Acesso restrito ao domínio @grupomedcof.com.br.')
+      } else {
+        setError(`Erro ao autenticar com Google: ${msg}`)
       }
     } finally {
       setLoading(false)
@@ -99,6 +118,24 @@ export function LoginPage() {
           >
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
+
+          <div className="relative flex items-center gap-3">
+            <div className="h-px flex-1 bg-ink/[0.08]" />
+            <span className="text-[12px] text-ink-muted">ou</span>
+            <div className="h-px flex-1 bg-ink/[0.08]" />
+          </div>
+
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={({ credential }) => {
+                if (credential) void handleGoogleSuccess(credential)
+              }}
+              onError={() => setError('Erro ao autenticar com Google.')}
+              width={300}
+              text="signin_with"
+              shape="pill"
+            />
+          </div>
         </form>
       </div>
     </div>

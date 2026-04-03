@@ -715,9 +715,16 @@ export function DashboardPage() {
                               {formatDate(p.postedAt)}
                             </td>
                             <td className="px-5 py-3">
-                              <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">
-                                {p.format}
-                              </span>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">
+                                  {p.format}
+                                </span>
+                                {p.transcript && (
+                                  <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                                    Transcript
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-5 py-3 tabular-nums text-ink-muted">
                               {p.likes.toLocaleString('pt-BR')}
@@ -802,6 +809,11 @@ export function DashboardPage() {
                       {p.format === 'Reels' && p.videoUrl && (
                         <span className="absolute left-1.5 top-1.5 rounded bg-ink/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                           ▶
+                        </span>
+                      )}
+                      {p.transcript && (
+                        <span className="absolute bottom-1.5 right-1.5 z-10 rounded bg-emerald-600/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                          T
                         </span>
                       )}
                       <div className="absolute inset-0 flex items-center justify-center gap-4 bg-ink/50 text-[13px] font-semibold text-white opacity-0 transition group-hover:opacity-100">

@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 import { AppLayout } from './components/AppLayout'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { AppWorkspaceProvider } from './context/AppWorkspaceContext'
@@ -12,6 +13,8 @@ import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
 import { DraftsPage } from './pages/DraftsPage'
 import { MedicalNewsPage } from './pages/MedicalNewsPage'
 import { TrendsPage } from './pages/TrendsPage'
+import { TwitterPostsPage } from './pages/TwitterPostsPage'
+import { BrandingPage } from './pages/BrandingPage'
 import { LoginPage } from './pages/LoginPage'
 import type { ReactNode } from 'react'
 
@@ -39,6 +42,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
  */
 function App() {
   return (
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''}>
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
@@ -65,6 +69,8 @@ function App() {
               <Route path="agenda" element={<SchedulePage />} />
               <Route path="trends" element={<TrendsPage />} />
               <Route path="noticias-medicas" element={<MedicalNewsPage />} />
+              <Route path="twitter-posts" element={<TwitterPostsPage />} />
+              <Route path="branding" element={<BrandingPage />} />
               <Route path="admin" element={<AdminOverviewPage />} />
               <Route
                 path="admin/instagram"
@@ -76,6 +82,7 @@ function App() {
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
+    </GoogleOAuthProvider>
   )
 }
 
