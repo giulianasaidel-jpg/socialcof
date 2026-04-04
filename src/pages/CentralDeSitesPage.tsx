@@ -609,10 +609,15 @@ export function CentralDeSitesPage() {
 
   async function handleDelete() {
     if (!deletingSource) return
-    await api.delete(`/medical-news/sources/${deletingSource._id}`)
-    setSources((prev) => prev.filter((s) => s._id !== deletingSource._id))
-    setDeletingSource(null)
-    addToast('Fonte removida', 'success')
+    try {
+      await api.delete(`/medical-news/sources/${deletingSource._id}`)
+      setSources((prev) => prev.filter((s) => s._id !== deletingSource._id))
+      setDeletingSource(null)
+      addToast('Fonte removida', 'success')
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Erro ao remover fonte', 'error')
+      throw err
+    }
   }
 
   const filtered = sources.filter((s) => {

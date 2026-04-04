@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 
 const WORKSPACE_LABELS: Record<string, string> = {
@@ -36,6 +38,7 @@ function sortWorkspaces(ids: string[]): string[] {
 }
 
 type InstagramAccountFull = {
+  documentId: string
   id: string
   handle: string
   displayName: string
@@ -44,6 +47,9 @@ type InstagramAccountFull = {
   profilePicS3Url: string | null
   brandColors: string[]
   referenceImages: string[]
+  relatedInstagramAccountIds: string[]
+  relatedTikTokAccountIds: string[]
+  relatedMedNewsSourceIds: string[]
 }
 
 type TikTokAccount = {
@@ -67,7 +73,12 @@ type ApiAccountFull = {
   profilePicS3Url?: string | null
   brandColors?: string[]
   referenceImages?: string[]
+  relatedInstagramAccountIds?: string[]
+  relatedTikTokAccountIds?: string[]
+  relatedMedNewsSourceIds?: string[]
 }
+
+type MedNewsSourceRow = { _id: string; name: string }
 
 type TikTokAccountsResponse = {
   data: TikTokAccount[]
@@ -95,6 +106,319 @@ function formatNumber(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return n.toLocaleString('pt-BR')
+}
+
+function uniqIds(ids: string[]): string[] {
+  return [...new Set(ids.filter(Boolean))]
+}
+
+function instagramPatchPath(a: InstagramAccountFull): string {
+  return a.id || a.documentId
+}
+
+function findIgByRelationId(rid: string, list: InstagramAccountFull[]): InstagramAccountFull | null {
+  return list.find((x) => x.documentId === rid || x.id === rid) ?? null
+}
+
+function isIgLinked(related: string[], other: InstagramAccountFull): boolean {
+  return related.includes(other.documentId) || (!!other.id && related.includes(other.id))
+}
+
+function InstagramCardInterestsPanel({
+  account,
+  instagramAccounts,
+  tiktokAccounts,
+  medNewsSources,
+  onPatched,
+}: {
+  account: InstagramAccountFull
+  instagramAccounts: InstagramAccountFull[]
+  tiktokAccounts: TikTokAccount[]
+  medNewsSources: MedNewsSourceRow[]
+  onPatched: (a: InstagramAccountFull) => void
+}) {
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const relIg = uniqIds(account.relatedInstagramAccountIds)
+  const relTt = uniqIds(account.relatedTikTokAccountIds)
+  const relMed = uniqIds(account.relatedMedNewsSourceIds)
+
+  async function save(next: InstagramAccountFull) {
+    setBusy(true)
+    setError('')
+    const payload = {
+      relatedInstagramAccountIds: uniqIds(next.relatedInstagramAccountIds),
+      relatedTikTokAccountIds: uniqIds(next.relatedTikTokAccountIds),
+      relatedMedNewsSourceIds: uniqIds(next.relatedMedNewsSourceIds),
+    }
+    try {
+      await api.patch(`/instagram-accounts/${encodeURIComponent(instagramPatchPath(next))}`, payload)
+      onPatched({ ...next, ...payload })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const igCandidates = instagramAccounts.filter(
+    (o) => o.documentId !== account.documentId && !isIgLinked(relIg, o),
+  )
+  const ttCandidates = tiktokAccounts.filter((o) => !relTt.includes(o.id))
+  const medCandidates = medNewsSources.filter((s) => !relMed.includes(s._id))
+
+  return (
+    <div className="space-y-3 border-t border-ink/[0.06] bg-surface/50 px-3 py-3">
+      {error ? (
+        <p className="rounded-lg bg-red-50 px-2 py-1.5 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-400">
+          {error}
+        </p>
+      ) : null}
+
+      <div>
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Notícias</p>
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {relMed.length === 0 ? (
+            <span className="text-[11px] text-ink-muted">Nenhuma fonte vinculada.</span>
+          ) : (
+            relMed.map((rid) => {
+              const src = medNewsSources.find((s) => s._id === rid)
+              return (
+                <span
+                  key={rid}
+                  className="inline-flex max-w-full items-center gap-1 rounded-lg border border-ink/[0.08] bg-card px-2 py-0.5 text-[11px] text-ink"
+                >
+                  <span className="truncate" title={rid}>
+                    {src?.name ?? rid}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void save({ ...account, relatedMedNewsSourceIds: relMed.filter((x) => x !== rid) })
+                    }
+                    className="shrink-0 rounded px-0.5 text-ink-muted hover:text-red-600 disabled:opacity-40"
+                    aria-label="Remover fonte"
+                  >
+                    ×
+                  </button>
+                </span>
+              )
+            })
+          )}
+        </div>
+        {medCandidates.length > 0 ? (
+          <select
+            defaultValue=""
+            disabled={busy}
+            onChange={(e) => {
+              const v = e.target.value
+              e.currentTarget.value = ''
+              if (!v) return
+              void save({ ...account, relatedMedNewsSourceIds: [...relMed, v] })
+            }}
+            className="w-full rounded-lg border border-ink/[0.1] bg-surface px-2 py-1.5 text-[12px] text-ink"
+          >
+            <option value="">+ Adicionar fonte de notícias</option>
+            {medCandidates.map((s) => (
+              <option key={s._id} value={s._id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-[10px] text-ink-subtle">
+            {medNewsSources.length === 0
+              ? 'Nenhuma fonte no catálogo (Central de Sites).'
+              : 'Todas as fontes listadas já estão vinculadas.'}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Instagram</p>
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {relIg.length === 0 ? (
+            <span className="text-[11px] text-ink-muted">Nenhuma conta vinculada.</span>
+          ) : (
+            relIg.map((rid) => {
+              const o = findIgByRelationId(rid, instagramAccounts)
+              return (
+                <span
+                  key={rid}
+                  className="inline-flex max-w-full items-center gap-1 rounded-lg border border-ink/[0.08] bg-card px-2 py-0.5 text-[11px] text-ink"
+                >
+                  <span className="truncate" title={rid}>
+                    {o ? `${o.displayName} (@${o.handle})` : rid}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void save({ ...account, relatedInstagramAccountIds: relIg.filter((x) => x !== rid) })
+                    }
+                    className="shrink-0 rounded px-0.5 text-ink-muted hover:text-red-600 disabled:opacity-40"
+                    aria-label="Remover conta"
+                  >
+                    ×
+                  </button>
+                </span>
+              )
+            })
+          )}
+        </div>
+        {igCandidates.length > 0 ? (
+          <select
+            defaultValue=""
+            disabled={busy}
+            onChange={(e) => {
+              const v = e.target.value
+              e.currentTarget.value = ''
+              if (!v) return
+              void save({ ...account, relatedInstagramAccountIds: [...relIg, v] })
+            }}
+            className="w-full rounded-lg border border-ink/[0.1] bg-surface px-2 py-1.5 text-[12px] text-ink"
+          >
+            <option value="">+ Adicionar conta Instagram</option>
+            {igCandidates.map((o) => (
+              <option key={o.documentId} value={o.documentId}>
+                {o.displayName} (@{o.handle})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-[10px] text-ink-subtle">
+            {instagramAccounts.filter((x) => x.documentId !== account.documentId).length === 0
+              ? 'Não há outras contas Instagram.'
+              : 'Todas as outras contas já estão vinculadas.'}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">TikTok</p>
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {relTt.length === 0 ? (
+            <span className="text-[11px] text-ink-muted">Nenhuma conta vinculada.</span>
+          ) : (
+            relTt.map((rid) => {
+              const o = tiktokAccounts.find((t) => t.id === rid)
+              return (
+                <span
+                  key={rid}
+                  className="inline-flex max-w-full items-center gap-1 rounded-lg border border-ink/[0.08] bg-card px-2 py-0.5 text-[11px] text-ink"
+                >
+                  <span className="truncate" title={rid}>
+                    {o ? `${o.displayName} (@${o.handle})` : rid}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void save({ ...account, relatedTikTokAccountIds: relTt.filter((x) => x !== rid) })
+                    }
+                    className="shrink-0 rounded px-0.5 text-ink-muted hover:text-red-600 disabled:opacity-40"
+                    aria-label="Remover TikTok"
+                  >
+                    ×
+                  </button>
+                </span>
+              )
+            })
+          )}
+        </div>
+        {ttCandidates.length > 0 ? (
+          <select
+            defaultValue=""
+            disabled={busy}
+            onChange={(e) => {
+              const v = e.target.value
+              e.currentTarget.value = ''
+              if (!v) return
+              void save({ ...account, relatedTikTokAccountIds: [...relTt, v] })
+            }}
+            className="w-full rounded-lg border border-ink/[0.1] bg-surface px-2 py-1.5 text-[12px] text-ink"
+          >
+            <option value="">+ Adicionar conta TikTok</option>
+            {ttCandidates.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.displayName} (@{o.handle})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-[10px] text-ink-subtle">
+            {tiktokAccounts.length === 0
+              ? 'Nenhuma conta TikTok carregada.'
+              : 'Todas as contas TikTok já estão vinculadas.'}
+          </p>
+        )}
+      </div>
+
+      {busy ? <p className="text-[10px] text-ink-muted">Salvando…</p> : null}
+    </div>
+  )
+}
+
+function AdminProfileDeleteModal({
+  title,
+  entityLabel,
+  onClose,
+  onConfirm,
+}: {
+  title: string
+  entityLabel: string
+  onClose: () => void
+  onConfirm: () => Promise<void>
+}) {
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  async function handleConfirm() {
+    setLoading(true)
+    try {
+      await onConfirm()
+    } catch {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl bg-card p-6 shadow-2xl">
+        <h2 className="text-[17px] font-semibold text-ink">{title}</h2>
+        <p className="mt-2 text-[14px] text-ink-muted">
+          Remover <strong className="text-ink">{entityLabel}</strong> permanentemente? Não dá para desfazer.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl px-4 py-2 text-[14px] font-medium text-ink-muted hover:bg-ink/[0.04]"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={loading}
+            className="rounded-xl bg-red-500 px-5 py-2 text-[14px] font-semibold text-white disabled:opacity-50"
+          >
+            {loading ? 'Excluindo…' : 'Excluir'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -541,8 +865,11 @@ function BrandingModal({
  * Central de perfis: contas Instagram e TikTok agrupadas por workspace, com modal de branding por conta.
  */
 export function CentralDePerfilsPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [instagramAccounts, setInstagramAccounts] = useState<InstagramAccountFull[]>([])
   const [tiktokAccounts, setTiktokAccounts] = useState<TikTokAccount[]>([])
+  const [medNewsSources, setMedNewsSources] = useState<MedNewsSourceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
   const [selectedAccount, setSelectedAccount] = useState<InstagramAccountFull | null>(null)
@@ -550,16 +877,23 @@ export function CentralDePerfilsPage() {
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
   const [bulkAddingWorkspace, setBulkAddingWorkspace] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string | null>(null)
+  const [adminDeleteTarget, setAdminDeleteTarget] = useState<
+    | { kind: 'instagram'; account: InstagramAccountFull }
+    | { kind: 'tiktok'; account: TikTokAccount }
+    | null
+  >(null)
 
   useEffect(() => {
     setLoading(true)
     Promise.all([
       api.get<ApiAccountFull[]>('/instagram-accounts'),
       api.get<TikTokAccountsResponse>('/tiktok-accounts?limit=100'),
+      api.get<MedNewsSourceRow[]>('/medical-news/sources').catch(() => []),
     ])
-      .then(([igAccounts, tiktokRes]) => {
+      .then(([igAccounts, tiktokRes, sources]) => {
         setInstagramAccounts(
           igAccounts.map((a) => ({
+            documentId: a.id,
             id: a.externalId ?? a.id,
             handle: a.handle,
             displayName: a.displayName,
@@ -568,9 +902,13 @@ export function CentralDePerfilsPage() {
             profilePicS3Url: a.profilePicS3Url ?? null,
             brandColors: a.brandColors ?? [],
             referenceImages: a.referenceImages ?? [],
+            relatedInstagramAccountIds: a.relatedInstagramAccountIds ?? [],
+            relatedTikTokAccountIds: a.relatedTikTokAccountIds ?? [],
+            relatedMedNewsSourceIds: a.relatedMedNewsSourceIds ?? [],
           })),
         )
         setTiktokAccounts(tiktokRes.data)
+        setMedNewsSources(Array.isArray(sources) ? sources : [])
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -597,17 +935,23 @@ export function CentralDePerfilsPage() {
     setRefreshKey((k) => k + 1)
   }
 
+  function mergeInstagramAccountPatched(next: InstagramAccountFull) {
+    setInstagramAccounts((prev) => prev.map((a) => (a.documentId === next.documentId ? next : a)))
+    setSelectedAccount((p) => (p?.documentId === next.documentId ? next : p))
+  }
+
   /**
    * Chama POST /instagram-accounts/discover para atualizar foto de perfil, cores e imagens da conta.
    */
   async function refreshAccount(account: InstagramAccountFull) {
-    setRefreshingId(account.id)
+    setRefreshingId(account.documentId)
     try {
       const updated = await api.post<ApiAccountFull>('/instagram-accounts/discover', {
         handle: account.handle,
         workspace: account.workspace,
       })
       const mapped: InstagramAccountFull = {
+        documentId: updated.id,
         id: updated.externalId ?? updated.id,
         handle: updated.handle,
         displayName: updated.displayName,
@@ -616,17 +960,43 @@ export function CentralDePerfilsPage() {
         profilePicS3Url: updated.profilePicS3Url ?? null,
         brandColors: updated.brandColors ?? [],
         referenceImages: updated.referenceImages ?? [],
+        relatedInstagramAccountIds: updated.relatedInstagramAccountIds ?? account.relatedInstagramAccountIds,
+        relatedTikTokAccountIds: updated.relatedTikTokAccountIds ?? account.relatedTikTokAccountIds,
+        relatedMedNewsSourceIds: updated.relatedMedNewsSourceIds ?? account.relatedMedNewsSourceIds,
       }
-      setInstagramAccounts((prev) => prev.map((a) => (a.id === account.id ? mapped : a)))
-      setSelectedAccount((prev) => (prev?.id === account.id ? mapped : prev))
+      setInstagramAccounts((prev) => prev.map((a) => (a.documentId === account.documentId ? mapped : a)))
+      setSelectedAccount((prev) => (prev?.documentId === account.documentId ? mapped : prev))
     } catch {}
     finally {
       setRefreshingId(null)
     }
   }
 
+  async function executeAdminDelete() {
+    if (!adminDeleteTarget) return
+    if (adminDeleteTarget.kind === 'instagram') {
+      const id = adminDeleteTarget.account.documentId
+      await api.delete(`/instagram-accounts/${id}`)
+      setInstagramAccounts((prev) => prev.filter((a) => a.documentId !== id))
+      setSelectedAccount((prev) => (prev?.documentId === id ? null : prev))
+    } else {
+      const id = adminDeleteTarget.account.id
+      await api.delete(`/tiktok-accounts/${id}`)
+      setTiktokAccounts((prev) => prev.filter((a) => a.id !== id))
+    }
+    setAdminDeleteTarget(null)
+  }
+
   return (
     <>
+      {adminDeleteTarget && (
+        <AdminProfileDeleteModal
+          title={adminDeleteTarget.kind === 'instagram' ? 'Excluir Instagram' : 'Excluir TikTok'}
+          entityLabel={`@${adminDeleteTarget.account.handle}`}
+          onClose={() => setAdminDeleteTarget(null)}
+          onConfirm={executeAdminDelete}
+        />
+      )}
       {addingTo && (
         <AddAccountModal
           target={addingTo}
@@ -646,7 +1016,7 @@ export function CentralDePerfilsPage() {
           account={selectedAccount}
           onClose={() => setSelectedAccount(null)}
           onRefresh={() => refreshAccount(selectedAccount)}
-          refreshing={refreshingId === selectedAccount.id}
+          refreshing={refreshingId === selectedAccount.documentId}
         />
       )}
 
@@ -714,11 +1084,17 @@ export function CentralDePerfilsPage() {
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {ws.instagram.map((account) => (
-                    <div key={account.id} className="group relative">
+                    <div
+                      key={account.documentId}
+                      className="group relative flex flex-col overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition hover:border-brand/40 hover:shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+                    >
                       <button
                         type="button"
                         onClick={() => setSelectedAccount(account)}
-                        className="flex w-full items-center gap-3 rounded-2xl border border-ink/[0.06] bg-card p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition hover:border-brand/40 hover:shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+                        className={[
+                          'flex w-full items-center gap-3 p-4 text-left transition hover:bg-ink/[0.02]',
+                          isAdmin ? 'pr-12' : 'pr-14',
+                        ].join(' ')}
                       >
                         {account.profilePicS3Url ? (
                           <img
@@ -739,7 +1115,7 @@ export function CentralDePerfilsPage() {
                           )}
                         </div>
                         {(account.brandColors.length > 0 || account.referenceImages.length > 0) && (
-                          <div className="flex shrink-0 flex-col items-end gap-1 pr-5">
+                          <div className="flex shrink-0 flex-col items-end gap-1 pr-1">
                             {account.brandColors.length > 0 && (
                               <div className="flex gap-1">
                                 {account.brandColors.slice(0, 4).map((c, i) => (
@@ -759,10 +1135,32 @@ export function CentralDePerfilsPage() {
                           </div>
                         )}
                       </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setAdminDeleteTarget({ kind: 'instagram', account })
+                          }}
+                          aria-label="Excluir conta Instagram"
+                          className="absolute right-10 top-2 rounded-lg p-1.5 text-red-500/70 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-950/30"
+                          title="Excluir conta"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path
+                              d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14ZM10 11v6M14 11v6"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); void refreshAccount(account) }}
-                        disabled={refreshingId === account.id}
+                        disabled={refreshingId === account.documentId}
                         aria-label="Atualizar branding"
                         className="absolute right-2 top-2 rounded-lg p-1.5 text-ink/30 opacity-0 transition hover:bg-ink/[0.06] hover:text-ink-muted group-hover:opacity-100 disabled:opacity-50"
                       >
@@ -771,7 +1169,7 @@ export function CentralDePerfilsPage() {
                           height="14"
                           viewBox="0 0 16 16"
                           fill="none"
-                          className={refreshingId === account.id ? 'animate-spin' : ''}
+                          className={refreshingId === account.documentId ? 'animate-spin' : ''}
                         >
                           <path
                             d="M13.65 2.35A8 8 0 1 0 15 8h-2a6 6 0 1 1-1.05-3.37L10 6h5V1l-1.35 1.35Z"
@@ -779,6 +1177,19 @@ export function CentralDePerfilsPage() {
                           />
                         </svg>
                       </button>
+                      <InstagramCardInterestsPanel
+                        account={account}
+                        instagramAccounts={instagramAccounts}
+                        tiktokAccounts={tiktokAccounts}
+                        medNewsSources={medNewsSources}
+                        onPatched={mergeInstagramAccountPatched}
+                      />
+                      <Link
+                        to={`/interesses-por-perfil?perfil=${encodeURIComponent(account.id)}`}
+                        className="border-t border-ink/[0.06] px-3 py-2.5 text-center text-[12px] font-medium text-brand transition hover:bg-brand/[0.06]"
+                      >
+                        Abrir feed de interesses
+                      </Link>
                     </div>
                   ))}
                   <button
@@ -811,34 +1222,60 @@ export function CentralDePerfilsPage() {
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {ws.tiktok.map((account) => (
-                    <a
+                    <div
                       key={account.id}
-                      href={account.profileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 rounded-2xl border border-ink/[0.06] bg-card p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition hover:border-brand/40 hover:shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+                      className="group relative overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition hover:border-brand/40 hover:shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
                     >
-                      {account.profilePicUrl ? (
-                        <img
-                          src={account.profilePicUrl}
-                          alt={account.handle}
-                          className="h-10 w-10 shrink-0 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-sm font-bold text-white">
-                          {account.handle[0].toUpperCase()}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-medium text-ink">
-                          {account.displayName}{account.isVerified ? ' ✓' : ''}
-                        </p>
-                        <p className="text-[12px] text-ink-muted">@{account.handle}</p>
-                        {account.followers > 0 && (
-                          <p className="text-[11px] text-ink-subtle">{formatNumber(account.followers)} seguidores</p>
+                      <a
+                        href={account.profileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={[
+                          'flex items-center gap-3 p-4 transition hover:bg-ink/[0.02]',
+                          isAdmin ? 'pr-12' : '',
+                        ].join(' ')}
+                      >
+                        {account.profilePicUrl ? (
+                          <img
+                            src={account.profilePicUrl}
+                            alt={account.handle}
+                            className="h-10 w-10 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-sm font-bold text-white">
+                            {account.handle[0].toUpperCase()}
+                          </div>
                         )}
-                      </div>
-                    </a>
+                        <div className="min-w-0">
+                          <p className="truncate text-[14px] font-medium text-ink">
+                            {account.displayName}{account.isVerified ? ' ✓' : ''}
+                          </p>
+                          <p className="text-[12px] text-ink-muted">@{account.handle}</p>
+                          {account.followers > 0 && (
+                            <p className="text-[11px] text-ink-subtle">{formatNumber(account.followers)} seguidores</p>
+                          )}
+                        </div>
+                      </a>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setAdminDeleteTarget({ kind: 'tiktok', account })}
+                          aria-label="Excluir conta TikTok"
+                          className="absolute right-2 top-2 rounded-lg p-1.5 text-red-500/70 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-950/30"
+                          title="Excluir conta"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path
+                              d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14ZM10 11v6M14 11v6"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   ))}
                   <button
                     type="button"

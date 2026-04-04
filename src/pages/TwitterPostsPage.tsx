@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api, getAccessToken } from '../lib/api'
-import { GeneratePanel, type TwitterLikePost } from '../components/GeneratePanel'
+import { GeneratePanel, type GenerateFeedPrefill, type TwitterLikePost } from '../components/GeneratePanel'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', {
@@ -701,13 +702,47 @@ function PostCard({ post, onClick }: { post: TwitterLikePost; onClick: () => voi
 /**
  * Gerencia Twitter/X-style carousel posts: lista, criação com IA, edição e download.
  */
+type GenerateFromNewsState = {
+  id: string
+  title: string
+  summary?: string
+  source?: string
+  publishedAt?: string
+}
+
 export function TwitterPostsPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [posts, setPosts] = useState<TwitterLikePost[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedPost, setSelectedPost] = useState<TwitterLikePost | null>(null)
   const [showGeneratePanel, setShowGeneratePanel] = useState(false)
+  const [prefillNews, setPrefillNews] = useState<GenerateFromNewsState | null>(null)
+  const [feedPrefill, setFeedPrefill] = useState<GenerateFeedPrefill | null>(null)
+  const [panelKey, setPanelKey] = useState(0)
   const [statusFilter, setStatusFilter] = useState('Todos')
+
+  useEffect(() => {
+    const st = location.state as {
+      generateFromNews?: GenerateFromNewsState
+      generateFromFeed?: GenerateFeedPrefill
+    } | null
+    if (st?.generateFromFeed) {
+      setFeedPrefill(st.generateFromFeed)
+      setPrefillNews(null)
+      setShowGeneratePanel(true)
+      setPanelKey((k) => k + 1)
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: {} })
+      return
+    }
+    if (!st?.generateFromNews) return
+    setFeedPrefill(null)
+    setPrefillNews(st.generateFromNews)
+    setShowGeneratePanel(true)
+    setPanelKey((k) => k + 1)
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: {} })
+  }, [location.state, location.pathname, location.search, navigate])
 
   useEffect(() => {
     setLoading(true)
@@ -748,7 +783,17 @@ export function TwitterPostsPage() {
       )}
 
       {showGeneratePanel && (
-        <GeneratePanel onClose={() => setShowGeneratePanel(false)} onCreate={handleCreate} />
+        <GeneratePanel
+          key={panelKey}
+          onClose={() => {
+            setShowGeneratePanel(false)
+            setPrefillNews(null)
+            setFeedPrefill(null)
+          }}
+          onCreate={handleCreate}
+          initialNewsSelection={prefillNews ?? undefined}
+          initialFeedPrefill={feedPrefill ?? undefined}
+        />
       )}
 
       <div className="space-y-8">
@@ -761,7 +806,12 @@ export function TwitterPostsPage() {
           </div>
           <button
             type="button"
-            onClick={() => setShowGeneratePanel(true)}
+            onClick={() => {
+              setPrefillNews(null)
+              setFeedPrefill(null)
+              setPanelKey((k) => k + 1)
+              setShowGeneratePanel(true)
+            }}
             className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-brand/90"
           >
             Gerar novo

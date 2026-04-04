@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { api } from '../lib/api'
 
-type NewsCategory = 'education' | 'government' | 'journal' | 'guidelines' | 'research' | 'global'
+type NewsCategory =
+  | 'education'
+  | 'government'
+  | 'journal'
+  | 'guidelines'
+  | 'research'
+  | 'global'
+  | 'news'
+  | 'society'
 type NewsLanguage = 'pt' | 'en'
 type NewsSpecialty =
   | 'residencia'
@@ -37,13 +46,17 @@ type MedicalNewsResponse = {
 }
 
 const CATEGORY_META: Record<NewsCategory, { label: string; color: string }> = {
-  journal:    { label: 'Revistas',   color: '#6366f1' },
-  guidelines: { label: 'Diretrizes', color: '#f59e0b' },
-  government: { label: 'Governo',    color: '#3b82f6' },
-  education:  { label: 'Educação',   color: '#10b981' },
-  research:   { label: 'Pesquisa',   color: '#8b5cf6' },
-  global:     { label: 'Global',     color: '#ef4444' },
+  journal:    { label: 'Revistas',        color: '#6366f1' },
+  guidelines: { label: 'Diretrizes',      color: '#f59e0b' },
+  government: { label: 'Governo',         color: '#3b82f6' },
+  education:  { label: 'Educação',        color: '#10b981' },
+  research:   { label: 'Pesquisa',        color: '#8b5cf6' },
+  global:     { label: 'Global',          color: '#ef4444' },
+  news:       { label: 'Notícias',        color: '#06b6d4' },
+  society:    { label: 'Soc. Médica',     color: '#f97316' },
 }
+
+const FALLBACK_META = { label: 'Geral', color: '#6b7280' }
 
 const ALL_CATEGORIES: NewsCategory[] = [
   'journal',
@@ -376,8 +389,9 @@ function TabPill({
 }
 
 function NewsCard({ item }: { item: MedicalNewsItem }) {
+  const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
-  const meta = CATEGORY_META[item.category]
+  const meta = CATEGORY_META[item.category] ?? FALLBACK_META
   const date = new Date(item.publishedAt)
   const timeAgo = formatDistanceToNow(date, { addSuffix: false, locale: ptBR })
   const publishedDate = format(date, "d 'de' MMM. yyyy", { locale: ptBR })
@@ -461,7 +475,7 @@ function NewsCard({ item }: { item: MedicalNewsItem }) {
             </div>
           )}
 
-          <div className="mt-auto flex items-center justify-between pt-1">
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
             <div className="flex flex-wrap items-center gap-x-1.5 text-[12px] text-ink-muted">
               {item.author && <span>por {item.author}</span>}
               {item.author && item.wordCount !== null && <span>·</span>}
@@ -469,14 +483,35 @@ function NewsCard({ item }: { item: MedicalNewsItem }) {
                 <span>{item.wordCount.toLocaleString('pt-BR')} palavras</span>
               )}
             </div>
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 text-[13px] font-semibold text-[#1d9bf0] hover:underline"
-            >
-              Ler artigo ↗
-            </a>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  navigate('/twitter-posts', {
+                    state: {
+                      generateFromNews: {
+                        id: item.id,
+                        title: item.title,
+                        summary: item.summary,
+                        source: item.source,
+                        publishedAt: item.publishedAt,
+                      },
+                    },
+                  })
+                }
+                className="text-[13px] font-semibold text-ink hover:underline"
+              >
+                Gerar Twitter Post
+              </button>
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[13px] font-semibold text-[#1d9bf0] hover:underline"
+              >
+                Ler artigo ↗
+              </a>
+            </div>
           </div>
         </div>
       </article>
@@ -500,7 +535,7 @@ function SummaryModal({
   publishedDate: string
   onClose: () => void
 }) {
-  const meta = CATEGORY_META[item.category]
+  const meta = CATEGORY_META[item.category] ?? FALLBACK_META
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -614,7 +649,7 @@ function SourceAvatar({ source, category }: { source: string; category: NewsCate
     .map((w) => w[0])
     .join('')
     .toUpperCase()
-  const color = CATEGORY_META[category].color
+  const color = (CATEGORY_META[category] ?? FALLBACK_META).color
 
   return (
     <div

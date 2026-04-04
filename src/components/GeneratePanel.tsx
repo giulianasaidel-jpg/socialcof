@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useAppWorkspace } from '../context/AppWorkspaceContext'
 
@@ -22,7 +22,22 @@ export type TwitterLikePost = {
   createdAt: string
 }
 
-type SourceMode = 'post' | 'tiktok' | 'story' | 'text' | 'direct'
+type SourceMode = 'post' | 'tiktok' | 'story' | 'news' | 'text' | 'direct'
+
+type MedicalNewsListItem = {
+  id: string
+  title: string
+  summary: string
+  source: string
+  publishedAt: string
+}
+
+type MedicalNewsPageResponse = {
+  data: MedicalNewsListItem[]
+  total: number
+  page: number
+  totalPages: number
+}
 
 type DashPost = {
   id: string
@@ -89,6 +104,15 @@ type AccountBrandingData = {
 
 const POSTS_PER_PAGE = 10
 
+const NEWS_WORKSPACE_LABELS: Record<string, string> = {
+  socialcof: 'Social Cof',
+  'diretoria-medica': 'Médicos',
+  medcof: 'Medcof',
+  'professores-medcof': 'Professores',
+  concorrentes: 'Concorrentes',
+  creators: 'Creators',
+}
+
 export const TONE_SUGGESTIONS = [
   'educativo e direto',
   'empático',
@@ -96,6 +120,37 @@ export const TONE_SUGGESTIONS = [
   'motivacional',
   'informativo',
 ]
+
+export type GenerateFeedPrefill = {
+  mode: 'post' | 'tiktok' | 'story'
+  accountId: string
+  sourcePostId?: string
+  dashPost?: {
+    id: string
+    title: string
+    postedAt: string
+    format: string
+    thumbnailUrl?: string | null
+    transcript?: string | null
+  }
+  tiktokAccountId?: string
+  tiktokPost?: {
+    id: string
+    title: string
+    thumbnailUrl: string | null
+    transcript: string | null
+    postedAt: string | null
+  }
+  sourceInstagramStoryId?: string
+  story?: {
+    id: string
+    mediaType: 'image' | 'video'
+    thumbnailUrl: string | null
+    transcript: string | null
+    syncedAt: string
+    account: { id: string; displayName: string }
+  }
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', {
@@ -183,18 +238,40 @@ export function GeneratePanel({
   onCreate,
   initialTranscript,
   initialAccountId,
+  initialNewsSelection,
+  initialFeedPrefill,
 }: {
   onClose: () => void
   onCreate: (post: TwitterLikePost) => void
   initialTranscript?: string
   initialAccountId?: string
+  initialNewsSelection?: {
+    id: string
+    title: string
+    summary?: string
+    source?: string
+    publishedAt?: string
+  }
+  initialFeedPrefill?: GenerateFeedPrefill | null
 }) {
-  const { instagramAccounts, workspaceId } = useAppWorkspace()
-  const [sourceMode, setSourceMode] = useState<SourceMode>(initialTranscript ? 'text' : 'post')
-  const [accountId, setAccountId] = useState(initialAccountId ?? '')
-  const [avatarAccountId, setAvatarAccountId] = useState(initialAccountId ?? '')
+  const { instagramAccounts, workspaceId, products } = useAppWorkspace()
+  const [sourceMode, setSourceMode] = useState<SourceMode>(() => {
+    if (initialNewsSelection) return 'news'
+    if (initialTranscript) return 'text'
+    if (initialFeedPrefill) return initialFeedPrefill.mode
+    return 'post'
+  })
+  const [accountId, setAccountId] = useState(
+    () => initialFeedPrefill?.accountId ?? initialAccountId ?? '',
+  )
+  const [avatarAccountId, setAvatarAccountId] = useState(
+    () => initialFeedPrefill?.accountId ?? initialAccountId ?? '',
+  )
+  const [productId, setProductId] = useState('')
   const [tiktokAccounts, setTiktokAccounts] = useState<TikTokAccountOption[]>([])
-  const [tiktokAccountId, setTiktokAccountId] = useState('')
+  const [tiktokAccountId, setTiktokAccountId] = useState(
+    () => (initialFeedPrefill?.mode === 'tiktok' ? initialFeedPrefill.tiktokAccountId ?? '' : ''),
+  )
   const [mode, setMode] = useState<'light' | 'dark'>('dark')
   const [bodyFontSize, setBodyFontSize] = useState(20)
   const [profileName, setProfileName] = useState('')
@@ -202,7 +279,12 @@ export function GeneratePanel({
   const [profileImageUrl, setProfileImageUrl] = useState('')
   const [slideCount, setSlideCount] = useState(5)
   const [tone, setTone] = useState('educativo e direto')
-  const [sourcePostId, setSourcePostId] = useState('')
+  const [sourcePostId, setSourcePostId] = useState(
+    () =>
+      initialFeedPrefill?.mode === 'post' && initialFeedPrefill.sourcePostId
+        ? initialFeedPrefill.sourcePostId
+        : '',
+  )
   const [sourceTranscript, setSourceTranscript] = useState(initialTranscript ?? '')
   const [sourceCaption, setSourceCaption] = useState('')
   const [directTexts, setDirectTexts] = useState(['', ''])
@@ -210,17 +292,42 @@ export function GeneratePanel({
   const [dashPostsLoading, setDashPostsLoading] = useState(false)
   const [dashPostsPage, setDashPostsPage] = useState(1)
   const [dashPostsTotal, setDashPostsTotal] = useState(0)
-  const [selectedDashPost, setSelectedDashPost] = useState<DashPost | null>(null)
+  const [selectedDashPost, setSelectedDashPost] = useState<DashPost | null>(
+    () => (initialFeedPrefill?.mode === 'post' && initialFeedPrefill.dashPost ? initialFeedPrefill.dashPost : null),
+  )
   const [tiktokPosts, setTiktokPosts] = useState<TikTokSourcePost[]>([])
   const [tiktokPostsLoading, setTiktokPostsLoading] = useState(false)
   const [tiktokPostsPage, setTiktokPostsPage] = useState(1)
   const [tiktokPostsTotal, setTiktokPostsTotal] = useState(0)
-  const [selectedTikTokPost, setSelectedTikTokPost] = useState<TikTokSourcePost | null>(null)
+  const [selectedTikTokPost, setSelectedTikTokPost] = useState<TikTokSourcePost | null>(
+    () =>
+      initialFeedPrefill?.mode === 'tiktok' && initialFeedPrefill.tiktokPost
+        ? initialFeedPrefill.tiktokPost
+        : null,
+  )
   const [stories, setStories] = useState<StorySourcePost[]>([])
   const [storiesLoading, setStoriesLoading] = useState(false)
   const [storiesPage, setStoriesPage] = useState(1)
   const [storiesTotal, setStoriesTotal] = useState(0)
-  const [selectedStory, setSelectedStory] = useState<StorySourcePost | null>(null)
+  const [selectedStory, setSelectedStory] = useState<StorySourcePost | null>(
+    () => (initialFeedPrefill?.mode === 'story' && initialFeedPrefill.story ? initialFeedPrefill.story : null),
+  )
+  const [newsItems, setNewsItems] = useState<MedicalNewsListItem[]>([])
+  const [newsLoading, setNewsLoading] = useState(false)
+  const [newsPage, setNewsPage] = useState(1)
+  const [newsTotalPages, setNewsTotalPages] = useState(1)
+  const [newsWorkspaceFilter, setNewsWorkspaceFilter] = useState<string | null>(() => workspaceId)
+  const [selectedNews, setSelectedNews] = useState<MedicalNewsListItem | null>(() =>
+    initialNewsSelection
+      ? {
+          id: initialNewsSelection.id,
+          title: initialNewsSelection.title,
+          summary: initialNewsSelection.summary ?? '',
+          source: initialNewsSelection.source ?? '',
+          publishedAt: initialNewsSelection.publishedAt ?? '',
+        }
+      : null,
+  )
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [noTranscriptBody, setNoTranscriptBody] = useState<Record<string, unknown> | null>(null)
@@ -234,14 +341,58 @@ export function GeneratePanel({
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
+  const newsWorkspaceOptions = useMemo(() => {
+    const ids = new Set<string>()
+    ids.add('socialcof')
+    ids.add('diretoria-medica')
+    for (const a of instagramAccounts) {
+      if (a.workspace) ids.add(a.workspace)
+    }
+    return [...ids].sort((x, y) => x.localeCompare(y))
+  }, [instagramAccounts])
+
   useEffect(() => {
+    setNewsWorkspaceFilter(workspaceId)
+  }, [workspaceId])
+
+  useEffect(() => {
+    setNewsPage(1)
+  }, [newsWorkspaceFilter])
+
+  useEffect(() => {
+    if (!initialFeedPrefill) return
+    setSourceMode(initialFeedPrefill.mode)
+    setAccountId(initialFeedPrefill.accountId)
+    setAvatarAccountId(initialFeedPrefill.accountId)
+    setError(null)
+    if (initialFeedPrefill.mode === 'post') {
+      if (initialFeedPrefill.sourcePostId) setSourcePostId(initialFeedPrefill.sourcePostId)
+      if (initialFeedPrefill.dashPost) setSelectedDashPost(initialFeedPrefill.dashPost)
+    }
+    if (initialFeedPrefill.mode === 'tiktok') {
+      if (initialFeedPrefill.tiktokAccountId) setTiktokAccountId(initialFeedPrefill.tiktokAccountId)
+      if (initialFeedPrefill.tiktokPost) setSelectedTikTokPost(initialFeedPrefill.tiktokPost)
+    }
+    if (initialFeedPrefill.mode === 'story') {
+      if (initialFeedPrefill.story) setSelectedStory(initialFeedPrefill.story)
+    }
+  }, [initialFeedPrefill])
+
+  useEffect(() => {
+    if (initialFeedPrefill?.accountId) return
     if (!accountId && instagramAccounts.length > 0) {
       setAccountId(instagramAccounts[0].id)
     }
     if (!avatarAccountId && instagramAccounts.length > 0) {
       setAvatarAccountId(instagramAccounts[0].id)
     }
-  }, [instagramAccounts, accountId, avatarAccountId])
+  }, [instagramAccounts, accountId, avatarAccountId, initialFeedPrefill])
+
+  useEffect(() => {
+    if (!productId && products.length > 0) {
+      setProductId(products[0].id)
+    }
+  }, [products, productId])
 
   useEffect(() => {
     api
@@ -249,12 +400,6 @@ export function GeneratePanel({
       .then((res) => setTiktokAccounts(res.data))
       .catch(() => {})
   }, [])
-
-  useEffect(() => {
-    setSelectedDashPost(null)
-    setSourcePostId('')
-    setDashPostsPage(1)
-  }, [accountId])
 
   useEffect(() => {
     const account = instagramAccounts.find((a) => a.id === avatarAccountId)
@@ -293,6 +438,24 @@ export function GeneratePanel({
   }, [sourceMode, accountId, dashPostsPage])
 
   useEffect(() => {
+    if (sourceMode !== 'post' || dashPostsLoading || !initialFeedPrefill?.dashPost) return
+    const dp = initialFeedPrefill.dashPost
+    setDashPosts((prev) => (prev.some((p) => p.id === dp.id) ? prev : [dp, ...prev]))
+  }, [sourceMode, dashPostsLoading, initialFeedPrefill])
+
+  useEffect(() => {
+    if (sourceMode !== 'tiktok' || tiktokPostsLoading || !initialFeedPrefill?.tiktokPost) return
+    const tp = initialFeedPrefill.tiktokPost
+    setTiktokPosts((prev) => (prev.some((p) => p.id === tp.id) ? prev : [tp, ...prev]))
+  }, [sourceMode, tiktokPostsLoading, initialFeedPrefill])
+
+  useEffect(() => {
+    if (sourceMode !== 'story' || storiesLoading || !initialFeedPrefill?.story) return
+    const st = initialFeedPrefill.story
+    setStories((prev) => (prev.some((p) => p.id === st.id) ? prev : [st, ...prev]))
+  }, [sourceMode, storiesLoading, initialFeedPrefill])
+
+  useEffect(() => {
     if (sourceMode !== 'tiktok') return
     setTiktokPostsLoading(true)
     const params = new URLSearchParams({ page: String(tiktokPostsPage), limit: String(POSTS_PER_PAGE) })
@@ -306,6 +469,24 @@ export function GeneratePanel({
       .catch(() => setTiktokPosts([]))
       .finally(() => setTiktokPostsLoading(false))
   }, [sourceMode, tiktokPostsPage, tiktokAccountId])
+
+  useEffect(() => {
+    if (sourceMode !== 'news') return
+    setNewsLoading(true)
+    const params = new URLSearchParams({ page: String(newsPage), limit: String(POSTS_PER_PAGE) })
+    if (newsWorkspaceFilter) params.set('workspace', newsWorkspaceFilter)
+    api
+      .get<MedicalNewsPageResponse>(`/medical-news?${params}`)
+      .then((res) => {
+        setNewsItems(res.data)
+        setNewsTotalPages(Math.max(1, res.totalPages))
+      })
+      .catch(() => {
+        setNewsItems([])
+        setNewsTotalPages(1)
+      })
+      .finally(() => setNewsLoading(false))
+  }, [sourceMode, newsPage, newsWorkspaceFilter])
 
   useEffect(() => {
     if (sourceMode !== 'story' || !workspaceId) return
@@ -337,10 +518,15 @@ export function GeneratePanel({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    if (sourceMode === 'news' && !selectedNews) {
+      setError('Selecione uma notícia do feed.')
+      return
+    }
     setGenerating(true)
 
     const body: Record<string, unknown> = {
       accountId,
+      productId,
       mode,
       bodyFontSize,
       ...(profileName && { profileName }),
@@ -358,6 +544,10 @@ export function GeneratePanel({
       body.tone = tone
     } else if (sourceMode === 'story') {
       body.sourceInstagramStoryId = selectedStory?.id
+      body.slideCount = slideCount
+      body.tone = tone
+    } else if (sourceMode === 'news') {
+      body.sourceNewsId = selectedNews!.id
       body.slideCount = slideCount
       body.tone = tone
     } else if (sourceMode === 'text') {
@@ -448,6 +638,7 @@ export function GeneratePanel({
                     { id: 'post' as SourceMode, label: 'Post' },
                     { id: 'tiktok' as SourceMode, label: 'TikTok' },
                     { id: 'story' as SourceMode, label: 'Story' },
+                    { id: 'news' as SourceMode, label: 'Notícia' },
                     { id: 'text' as SourceMode, label: 'Texto' },
                     { id: 'direct' as SourceMode, label: 'Direto' },
                   ] as const
@@ -472,6 +663,11 @@ export function GeneratePanel({
                         setSelectedStory(null)
                         setStoriesPage(1)
                       }
+                      if (id !== 'news') {
+                        setSelectedNews(null)
+                      } else {
+                        setNewsPage(1)
+                      }
                     }}
                     className={[
                       'flex-1 rounded-[9px] px-2 py-2 text-[13px] font-medium transition',
@@ -492,7 +688,12 @@ export function GeneratePanel({
                   <label className={labelCls}>Conta fonte</label>
                   <select
                     value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
+                    onChange={(e) => {
+                      setAccountId(e.target.value)
+                      setSelectedDashPost(null)
+                      setSourcePostId('')
+                      setDashPostsPage(1)
+                    }}
                     className={inputCls}
                   >
                     {instagramAccounts.map((a) => (
@@ -759,7 +960,11 @@ export function GeneratePanel({
                   <label className={labelCls}>Conta fonte</label>
                   <select
                     value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
+                    onChange={(e) => {
+                      setAccountId(e.target.value)
+                      setSelectedStory(null)
+                      setStoriesPage(1)
+                    }}
                     className={inputCls}
                   >
                     {instagramAccounts.map((a) => (
@@ -883,6 +1088,128 @@ export function GeneratePanel({
               </div>
             )}
 
+            {sourceMode === 'news' && (
+              <div className="flex flex-col gap-3">
+                <label className={labelCls}>Notícia do feed (sites)</label>
+                <div>
+                  <p className="mb-1.5 text-[12px] font-medium text-ink-muted">Workspace das notícias</p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setNewsWorkspaceFilter(null)}
+                      className={[
+                        'shrink-0 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors',
+                        newsWorkspaceFilter === null
+                          ? 'border-transparent bg-ink text-surface'
+                          : 'border-ink/[0.1] text-ink-muted hover:border-ink/20 hover:text-ink',
+                      ].join(' ')}
+                    >
+                      Todos
+                    </button>
+                    {newsWorkspaceOptions.map((ws) => (
+                      <button
+                        key={ws}
+                        type="button"
+                        onClick={() => setNewsWorkspaceFilter(ws)}
+                        className={[
+                          'shrink-0 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors',
+                          newsWorkspaceFilter === ws
+                            ? 'border-transparent bg-ink text-surface'
+                            : 'border-ink/[0.1] text-ink-muted hover:border-ink/20 hover:text-ink',
+                        ].join(' ')}
+                      >
+                        {NEWS_WORKSPACE_LABELS[ws] ?? ws}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {selectedNews && (
+                  <div className="flex items-start gap-3 rounded-xl border border-brand/30 bg-brand/5 px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-[13px] font-medium text-ink">{selectedNews.title}</p>
+                      <p className="mt-0.5 text-[11px] text-ink-subtle">
+                        {selectedNews.source || '—'}
+                        {selectedNews.publishedAt ? (
+                          <>
+                            <span className="mx-1 opacity-40">·</span>
+                            {formatDate(selectedNews.publishedAt)}
+                          </>
+                        ) : null}
+                      </p>
+                      {selectedNews.summary ? (
+                        <p className="mt-1 line-clamp-2 text-[12px] text-ink-muted">{selectedNews.summary}</p>
+                      ) : null}
+                    </div>
+                    <span className="shrink-0 text-[13px] text-brand">✓</span>
+                  </div>
+                )}
+
+                {newsLoading ? (
+                  <div className="flex flex-col gap-2">
+                    {[1, 2, 3].map((k) => (
+                      <div key={k} className="h-14 animate-pulse rounded-xl bg-ink/[0.06]" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-ink/[0.08]">
+                    {newsItems.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-[13px] text-ink-muted">
+                        Nenhuma notícia encontrada.
+                      </p>
+                    ) : (
+                      newsItems.map((n) => (
+                        <button
+                          key={n.id}
+                          type="button"
+                          onClick={() => setSelectedNews(n)}
+                          className={[
+                            'flex w-full items-start gap-3 border-b border-ink/[0.05] px-3 py-2.5 text-left transition last:border-0 hover:bg-ink/[0.03]',
+                            selectedNews?.id === n.id ? 'bg-brand/5' : '',
+                          ].join(' ')}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-[13px] font-medium text-ink">{n.title}</p>
+                            <p className="mt-0.5 text-[11px] text-ink-subtle">
+                              {n.source}
+                              <span className="mx-1 opacity-40">·</span>
+                              {formatDate(n.publishedAt)}
+                            </p>
+                          </div>
+                          {selectedNews?.id === n.id && (
+                            <span className="shrink-0 text-[13px] text-brand">✓</span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {newsTotalPages > 1 && (
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setNewsPage((p) => Math.max(1, p - 1))}
+                      disabled={newsPage <= 1}
+                      className="rounded-lg border border-ink/[0.1] px-3 py-1.5 text-[13px] font-medium text-ink-muted disabled:opacity-30 hover:text-ink"
+                    >
+                      Anterior
+                    </button>
+                    <span className="text-[12px] text-ink-muted">
+                      Página {newsPage} de {newsTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setNewsPage((p) => Math.min(newsTotalPages, p + 1))}
+                      disabled={newsPage >= newsTotalPages}
+                      className="rounded-lg border border-ink/[0.1] px-3 py-1.5 text-[13px] font-medium text-ink-muted disabled:opacity-30 hover:text-ink"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {sourceMode === 'text' && (
               <div className="flex flex-col gap-4">
                 <div>
@@ -975,6 +1302,21 @@ export function GeneratePanel({
                 {instagramAccounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.displayName} (@{a.handle})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className={labelCls}>Produto</label>
+              <select
+                value={productId}
+                onChange={(e) => setProductId(e.target.value)}
+                className={inputCls}
+              >
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
                   </option>
                 ))}
               </select>
@@ -1110,7 +1452,13 @@ export function GeneratePanel({
 
             <button
               type="submit"
-              disabled={generating}
+              disabled={
+                generating ||
+                (sourceMode === 'news' && !selectedNews) ||
+                (sourceMode === 'post' && !sourcePostId) ||
+                (sourceMode === 'tiktok' && !selectedTikTokPost) ||
+                (sourceMode === 'story' && !selectedStory)
+              }
               className="rounded-xl bg-brand py-3 text-[15px] font-semibold text-white disabled:opacity-60 hover:bg-brand/90"
             >
               {generating ? 'Gerando…' : 'Gerar com IA'}

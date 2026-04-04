@@ -8,6 +8,7 @@ type NavGroup = { label: string; items: NavItem[] }
 const topNavItems: NavItem[] = [
   { to: '/', label: 'Painel geral', end: true },
   { to: '/central-de-perfis', label: 'Central de perfis' },
+  { to: '/interesses-por-perfil', label: 'Interesses por perfil' },
   { to: '/branding', label: 'Branding' },
   { to: '/noticias', label: 'Atualizações Sites' },
 ]
