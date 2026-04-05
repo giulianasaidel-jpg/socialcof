@@ -32,6 +32,7 @@ type ApiInstagramAccount = {
   displayName: string
   followers?: number
   workspace?: string
+  profilePicS3Url?: string | null
 }
 
 type ApiProduct = {
@@ -53,6 +54,7 @@ function toMedCofAccount(a: ApiInstagramAccount): MedCofInstagramAccount {
     profileUrl: `https://www.instagram.com/${a.handle}/`,
     followers: a.followers ?? 0,
     workspace: a.workspace,
+    profilePicS3Url: a.profilePicS3Url,
   }
 }
 

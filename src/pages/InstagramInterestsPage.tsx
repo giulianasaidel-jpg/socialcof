@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { GenerateFeedPrefill } from '../components/GeneratePanel'
+import { MediaPeekEyeButton, MediaPeekModal } from '../components/MediaPeek'
+import type { MediaPeekModel } from '../lib/mediaPeek'
+import { mediaPeekHasPreview } from '../lib/mediaPeek'
 import { api } from '../lib/api'
 
 type ApiIgAccount = {
@@ -276,6 +279,26 @@ function rowKey(row: RelatedFeedItem, index: number): string {
   return `${row.type}-${id}-${row.sortAt}`
 }
 
+function interestRowPeekModel(row: RelatedFeedType, p: Record<string, unknown>): MediaPeekModel {
+  const title = str(p, 'title') || (row === 'instagram_story' ? 'Story' : 'Item')
+  const thumb =
+    (p.thumbnailUrl as string | undefined) ||
+    (p.imageUrl as string | undefined) ||
+    null
+  const video = (p.videoUrl as string | undefined) || null
+  const rawCar = p.carouselImages as string[] | undefined
+  const carouselImages =
+    Array.isArray(rawCar) && rawCar.filter(Boolean).length ? rawCar.filter((x): x is string => typeof x === 'string' && !!x) : undefined
+  const summary = row === 'medical_news' ? str(p, 'summary').trim() : ''
+  return {
+    title,
+    thumbnailUrl: thumb,
+    videoUrl: video,
+    carouselImages,
+    textBody: summary || null,
+  }
+}
+
 function OriginAvatar({
   url,
   label,
@@ -314,6 +337,7 @@ export function InstagramInterestsPage() {
   const [scrapingKey, setScrapingKey] = useState<string | null>(null)
   const [scrapeMessage, setScrapeMessage] = useState<string | null>(null)
   const [tiktokList, setTiktokList] = useState<TikTokListItem[]>([])
+  const [mediaPeek, setMediaPeek] = useState<MediaPeekModel | null>(null)
 
   const accountOptions = useMemo(
     () =>
@@ -533,6 +557,7 @@ export function InstagramInterestsPage() {
 
   return (
     <div className="space-y-8">
+      <MediaPeekModal model={mediaPeek} onClose={() => setMediaPeek(null)} />
       <header>
         <h1 className="text-3xl font-semibold tracking-tight text-ink">Interesses por perfil</h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">
@@ -674,9 +699,9 @@ export function InstagramInterestsPage() {
         ) : null}
 
         {feedLoading && !feed ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-2">
             {[1, 2, 3, 4, 5, 6].map((x) => (
-              <div key={x} className="h-[320px] animate-pulse rounded-2xl bg-ink/[0.06]" />
+              <div key={x} className="h-16 animate-pulse rounded-xl bg-ink/[0.06]" />
             ))}
           </div>
         ) : items.length === 0 ? (
@@ -684,7 +709,7 @@ export function InstagramInterestsPage() {
             Nenhum item neste tipo nesta página. Tente “Mais antigos” ou outro tipo acima.
           </p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card divide-y divide-ink/[0.06]">
             {items.map((row, index) => {
               const p = row.payload
               const k = rowKey(row, index)
@@ -692,11 +717,7 @@ export function InstagramInterestsPage() {
                 igAccounts: accounts,
                 tiktokList,
               })
-              const mediaThumb =
-                (p.thumbnailUrl as string | undefined) ||
-                (p.imageUrl as string | undefined) ||
-                null
-
+              const peekModel = interestRowPeekModel(row.type, p)
               const dateStr =
                 row.type === 'medical_news'
                   ? formatDate(str(p, 'publishedAt'))
@@ -706,7 +727,6 @@ export function InstagramInterestsPage() {
 
               const tx = transcriptText(p)
               const txFlag = transcriptFlagOn(p)
-              const newsSummary = str(p, 'summary').trim()
               const showTranscriptBlock =
                 tx &&
                 (row.type === 'instagram_post' ||
@@ -715,209 +735,141 @@ export function InstagramInterestsPage() {
                   row.type === 'tiktok_post')
 
               return (
-                <article
-                  key={k}
-                  className="flex flex-col overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.05)]"
-                >
-                  <div className="flex items-center gap-3 border-b border-ink/[0.06] bg-surface/80 px-4 py-3">
-                    <OriginAvatar url={origin.avatarUrl} label={origin.primary} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-ink">{origin.primary}</p>
-                      {origin.secondary && (
-                        <p className="truncate text-[12px] text-ink-muted">{origin.secondary}</p>
-                      )}
-                      <p className="text-[11px] text-ink-subtle">Origem do conteúdo</p>
-                      {origin.idLine ? (
-                        <p
-                          className="mt-0.5 truncate font-mono text-[10px] leading-tight text-ink-subtle"
-                          title={origin.idLine}
-                        >
-                          {origin.idLine}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="relative aspect-[4/3] bg-ink/[0.06]">
-                    {mediaThumb ? (
-                      <img src={mediaThumb} alt="" className="h-full w-full object-cover" />
+                <div key={k} className="flex flex-wrap items-start gap-3 px-4 py-4">
+                  <div className="flex w-10 shrink-0 justify-center pt-1">
+                    {mediaPeekHasPreview(peekModel) ? (
+                      <MediaPeekEyeButton onClick={() => setMediaPeek(peekModel)} />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">
-                        {row.type === 'medical_news'
-                          ? '📰'
-                          : row.type === 'tiktok_post'
-                            ? '🎵'
-                            : row.type === 'instagram_story'
-                              ? '⏳'
-                              : '📸'}
-                      </div>
+                      <span className="text-[11px] text-ink-subtle">—</span>
                     )}
-                    <span className="absolute left-2 top-2 flex flex-wrap gap-1">
-                      <span className="rounded-lg bg-ink/75 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                        {ROW_TYPE_SHORT[row.type] ?? row.type}
-                      </span>
-                      {(row.type === 'instagram_post' || row.type === 'instagram_reel') && txFlag && (
-                        <span
-                          className="rounded-lg bg-emerald-600/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
-                          title={tx ? 'Com transcrição' : 'Marcado com transcrição'}
-                        >
-                          Transcrição
-                        </span>
-                      )}
-                    </span>
                   </div>
-
-                  <div className="flex flex-1 flex-col gap-2 p-4">
-                    <p className="text-[12px] text-ink-muted">{dateStr}</p>
-                    <h3 className="line-clamp-2 text-[15px] font-medium leading-snug text-ink">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <OriginAvatar url={origin.avatarUrl} label={origin.primary} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-ink">{origin.primary}</p>
+                        {origin.secondary && (
+                          <p className="truncate text-[12px] text-ink-muted">{origin.secondary}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="rounded-lg bg-ink/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+                          {ROW_TYPE_SHORT[row.type] ?? row.type}
+                        </span>
+                        {(row.type === 'instagram_post' || row.type === 'instagram_reel') && txFlag && (
+                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-400">
+                            Transcrição
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {origin.idLine ? (
+                      <p
+                        className="mt-0.5 truncate font-mono text-[10px] leading-tight text-ink-subtle"
+                        title={origin.idLine}
+                      >
+                        {origin.idLine}
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-[12px] text-ink-muted">{dateStr}</p>
+                    <h3 className="mt-1 line-clamp-2 text-[15px] font-medium leading-snug text-ink">
                       {str(p, 'title') || (row.type === 'instagram_story' ? 'Story' : '—')}
                     </h3>
-
-                    {row.type === 'medical_news' && newsSummary && (
-                      <div className="rounded-xl border border-ink/[0.06] bg-ink/[0.03] px-3 py-2.5">
-                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                          Resumo
-                        </p>
-                        <p className="max-h-36 overflow-y-auto text-[12px] leading-relaxed text-ink">
-                          {newsSummary}
-                        </p>
-                      </div>
-                    )}
-
                     {row.type === 'instagram_post' || row.type === 'instagram_reel' ? (
-                      <div className="space-y-2">
-                        <p className="text-[11px] text-ink-subtle">
-                          {str(p, 'format')}
-                          {typeof p.likes === 'number' ? ` · ${formatNumber(p.likes)} curtidas` : ''}
-                          {typeof p.comments === 'number' ? ` · ${formatNumber(p.comments)} comentários` : ''}
-                        </p>
-                        {showTranscriptBlock ? (
-                          <div>
-                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                              Transcrição
-                            </p>
-                            <p className="max-h-32 overflow-y-auto rounded-lg bg-ink/[0.04] px-2.5 py-2 text-[11px] leading-relaxed text-ink">
-                              {tx}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
+                      <p className="mt-1 text-[11px] text-ink-subtle">
+                        {str(p, 'format')}
+                        {typeof p.likes === 'number' ? ` · ${formatNumber(p.likes)} curtidas` : ''}
+                        {typeof p.comments === 'number' ? ` · ${formatNumber(p.comments)} comentários` : ''}
+                      </p>
                     ) : null}
-
-                    {row.type === 'tiktok_post' ? (
-                      <div className="space-y-2">
-                        {typeof p.views === 'number' ? (
-                          <p className="text-[11px] text-ink-subtle">{formatNumber(p.views)} views</p>
-                        ) : null}
-                        {txFlag && (
-                          <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-400">
-                            Transcrição
-                          </span>
-                        )}
-                        {tx ? (
-                          <div>
-                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                              Transcrição
-                            </p>
-                            <p className="max-h-32 overflow-y-auto rounded-lg bg-ink/[0.04] px-2.5 py-2 text-[11px] leading-relaxed text-ink">
-                              {tx}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
+                    {row.type === 'tiktok_post' && typeof p.views === 'number' ? (
+                      <p className="mt-1 text-[11px] text-ink-subtle">{formatNumber(p.views)} views</p>
                     ) : null}
-
-                    {row.type === 'instagram_story' ? (
-                      <div className="space-y-2">
-                        {txFlag && (
-                          <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-400">
-                            Transcrição
-                          </span>
-                        )}
-                        {tx ? (
-                          <div>
-                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                              Transcrição
-                            </p>
-                            <p className="max-h-32 overflow-y-auto rounded-lg bg-ink/[0.04] px-2.5 py-2 text-[11px] leading-relaxed text-ink">
-                              {tx}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
+                    {row.type === 'tiktok_post' && txFlag && !showTranscriptBlock ? (
+                      <span className="mt-1 inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-400">
+                        Transcrição
+                      </span>
                     ) : null}
-
-                    <div className="mt-auto flex flex-wrap gap-2 pt-2">
-                      {row.type === 'medical_news' && (
-                        <button
-                          type="button"
-                          onClick={() => openTwitterNews(p)}
-                          className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90"
-                        >
-                          Twitter Post
-                        </button>
-                      )}
-                      {(row.type === 'instagram_post' || row.type === 'instagram_reel') && (
-                        <button
-                          type="button"
-                          onClick={() => openTwitterFromIgPost(p)}
-                          disabled={!str(p, 'id') && !str(p, 'instagramPostId')}
-                          className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90 disabled:opacity-40"
-                        >
-                          Twitter Post
-                        </button>
-                      )}
-                      {row.type === 'instagram_story' && (
-                        <button
-                          type="button"
-                          onClick={() => openTwitterFromStory(p)}
-                          disabled={!str(p, 'id') && !str(p, 'storyId')}
-                          className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90 disabled:opacity-40"
-                        >
-                          Twitter Post
-                        </button>
-                      )}
-                      {row.type === 'tiktok_post' && (
-                        <button
-                          type="button"
-                          onClick={() => openTwitterFromTikTok(p)}
-                          disabled={!str(p, 'id') && !str(p, 'tiktokPostId')}
-                          className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90 disabled:opacity-40"
-                        >
-                          Twitter Post
-                        </button>
-                      )}
-
+                    {row.type === 'instagram_story' && txFlag && !showTranscriptBlock ? (
+                      <span className="mt-1 inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-400">
+                        Transcrição
+                      </span>
+                    ) : null}
+                    {showTranscriptBlock ? (
+                      <details className="mt-2 text-[12px]">
+                        <summary className="cursor-pointer font-medium text-brand">Transcrição</summary>
+                        <p className="mt-1 max-h-28 overflow-y-auto text-[11px] leading-relaxed text-ink-muted">{tx}</p>
+                      </details>
+                    ) : null}
+                  </div>
+                  <div className="flex min-w-[9rem] shrink-0 flex-col flex-wrap gap-2 sm:items-end">
+                    {row.type === 'medical_news' && (
                       <button
                         type="button"
-                        disabled={
-                          scrapingKey === k ||
-                          (row.type === 'medical_news' && !medSourceMongoId(p)) ||
-                          ((row.type === 'instagram_post' ||
-                            row.type === 'instagram_reel' ||
-                            row.type === 'instagram_story') &&
-                            !payloadIgExternal(p)) ||
-                          (row.type === 'tiktok_post' && !tiktokAccountMongo(p))
-                        }
-                        onClick={() => void runScrape(row, index)}
-                        className="rounded-lg border border-ink/[0.12] px-3 py-1.5 text-[12px] font-medium text-ink disabled:opacity-40 hover:bg-ink/[0.04]"
+                        onClick={() => openTwitterNews(p)}
+                        className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90"
                       >
-                        {scrapingKey === k ? '…' : 'Scrap'}
+                        Twitter Post
                       </button>
-
-                      {(row.type === 'medical_news' ? str(p, 'url') : str(p, 'postUrl')) && (
-                        <a
-                          href={row.type === 'medical_news' ? str(p, 'url') : str(p, 'postUrl')}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-brand hover:underline"
-                        >
-                          Abrir
-                        </a>
-                      )}
-                    </div>
+                    )}
+                    {(row.type === 'instagram_post' || row.type === 'instagram_reel') && (
+                      <button
+                        type="button"
+                        onClick={() => openTwitterFromIgPost(p)}
+                        disabled={!str(p, 'id') && !str(p, 'instagramPostId')}
+                        className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90 disabled:opacity-40"
+                      >
+                        Twitter Post
+                      </button>
+                    )}
+                    {row.type === 'instagram_story' && (
+                      <button
+                        type="button"
+                        onClick={() => openTwitterFromStory(p)}
+                        disabled={!str(p, 'id') && !str(p, 'storyId')}
+                        className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90 disabled:opacity-40"
+                      >
+                        Twitter Post
+                      </button>
+                    )}
+                    {row.type === 'tiktok_post' && (
+                      <button
+                        type="button"
+                        onClick={() => openTwitterFromTikTok(p)}
+                        disabled={!str(p, 'id') && !str(p, 'tiktokPostId')}
+                        className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:bg-brand/90 disabled:opacity-40"
+                      >
+                        Twitter Post
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={
+                        scrapingKey === k ||
+                        (row.type === 'medical_news' && !medSourceMongoId(p)) ||
+                        ((row.type === 'instagram_post' ||
+                          row.type === 'instagram_reel' ||
+                          row.type === 'instagram_story') &&
+                          !payloadIgExternal(p)) ||
+                        (row.type === 'tiktok_post' && !tiktokAccountMongo(p))
+                      }
+                      onClick={() => void runScrape(row, index)}
+                      className="rounded-lg border border-ink/[0.12] px-3 py-1.5 text-[12px] font-medium text-ink disabled:opacity-40 hover:bg-ink/[0.04]"
+                    >
+                      {scrapingKey === k ? '…' : 'Scrap'}
+                    </button>
+                    {(row.type === 'medical_news' ? str(p, 'url') : str(p, 'postUrl')) && (
+                      <a
+                        href={row.type === 'medical_news' ? str(p, 'url') : str(p, 'postUrl')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[12px] font-medium text-brand hover:underline"
+                      >
+                        Abrir
+                      </a>
+                    )}
                   </div>
-                </article>
+                </div>
               )
             })}
           </div>

@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAppWorkspace } from '../context/AppWorkspaceContext'
 import { api } from '../lib/api'
-import { GeneratePanel, type TwitterLikePost } from '../components/GeneratePanel'
+import { GeneratePanel, type GenerateFeedPrefill } from '../components/GeneratePanel'
+import { PaginationWithChannel } from '../components/PaginationWithChannel'
+import { MediaPeekEyeButton, MediaPeekModal } from '../components/MediaPeek'
+import type { MediaPeekModel } from '../lib/mediaPeek'
+import { mediaPeekHasVisual } from '../lib/mediaPeek'
 
 type Post = {
   id: string
@@ -18,6 +23,8 @@ type Post = {
   carouselImages?: string[]
   videoUrl?: string | null
   transcript?: string | null
+  instagramAccountId?: string
+  accountId?: string
 }
 
 type AccountStats = { followers: number; totalPosts: number; recentPosts: Post[] }
@@ -57,6 +64,7 @@ type TikTokAccount = {
   isVerified: boolean
   profilePicUrl: string | null
   lastSyncAt: string | null
+  workspace?: string
 }
 
 type TikTokFeedPost = {
@@ -137,36 +145,6 @@ function useScrapeTimer<T>(): [ScrapeTimerState<T>, {
   }]
 }
 
-function Pagination({ page, pages, total, label, onPrev, onNext }: {
-  page: number; pages: number; total: number; label: string
-  onPrev: () => void; onNext: () => void
-}) {
-  if (pages <= 1) return null
-  return (
-    <div className="mt-6 flex items-center justify-between gap-3">
-      <button
-        type="button"
-        onClick={onPrev}
-        disabled={page <= 1}
-        className="rounded-full border border-ink/[0.1] px-4 py-2 text-[14px] font-medium text-ink hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Anterior
-      </button>
-      <span className="text-[13px] text-ink-muted">
-        Página {page} de {pages} · {total.toLocaleString('pt-BR')} {label}
-      </span>
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={page >= pages}
-        className="rounded-full border border-ink/[0.1] px-4 py-2 text-[14px] font-medium text-ink hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Próxima
-      </button>
-    </div>
-  )
-}
-
 function ScrapeButton({ loading, elapsed, label, loadingLabel, onClick, disabled }: {
   loading: boolean; elapsed: number; label: string; loadingLabel: string
   onClick: () => void; disabled?: boolean
@@ -197,184 +175,58 @@ function ThumbnailPlaceholder({ size = 40, label = false }: { size?: number; lab
   )
 }
 
-function DashStoryCard({ story, onXPost }: { story: InstagramStory; onXPost: (t: XPostTarget) => void }) {
-  const [transcriptOpen, setTranscriptOpen] = useState(false)
-  const hasVideo = story.mediaType === 'video' && !!story.videoUrl
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-      <div className="relative overflow-hidden bg-ink/[0.06]" style={{ aspectRatio: '9/16' }}>
-        {hasVideo ? (
-          <video controls src={story.videoUrl!} poster={story.thumbnailUrl ?? undefined} className="h-full w-full object-cover" />
-        ) : story.thumbnailUrl ? (
-          <img src={story.thumbnailUrl} alt="Story" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <span className="text-2xl" role="img" aria-label="Sem mídia">🖼️</span>
-          </div>
-        )}
-        <span
-          className={[
-            'absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white',
-            hasVideo ? 'bg-brand/80' : 'bg-ink/60',
-          ].join(' ')}
-        >
-          {hasVideo ? '▶ Vídeo' : '🖼 Imagem'}
-        </span>
-      </div>
-      <div className="space-y-2 p-3">
-        {story.account && (
-          <div className="flex items-center gap-2">
-            {story.account.profilePicS3Url ? (
-              <img src={story.account.profilePicS3Url} alt={story.account.displayName} className="h-6 w-6 shrink-0 rounded-full object-cover" />
-            ) : (
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[10px] font-bold text-brand">
-                {story.account.displayName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-semibold text-ink">{story.account.displayName}</p>
-              <p className="text-[10px] text-ink-muted">@{story.account.handle} · {formatNumber(story.account.followers)} seg.</p>
-            </div>
-          </div>
-        )}
-        {story.postedAt && <p className="text-[11px] text-ink-muted">Publicado: {formatDate(story.postedAt)}</p>}
-        <p className="text-[11px] text-ink-muted">Sync: {formatDate(story.syncedAt)}</p>
-        {story.expiresAt && <p className="text-[11px] text-ink-muted">Expira: {formatDate(story.expiresAt)}</p>}
-        {story.transcript && (
-          <>
-            <div className="rounded-xl border border-ink/[0.06] bg-surface">
-              <button
-                type="button"
-                onClick={() => setTranscriptOpen((o) => !o)}
-                className="flex w-full items-center justify-between px-3 py-2 text-[12px] font-medium text-ink"
-              >
-                <span>Transcrição</span>
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" className={transcriptOpen ? 'rotate-180 transition-transform' : 'transition-transform'}>
-                  <path d="M2 5l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              {transcriptOpen && (
-                <p className="select-text border-t border-ink/[0.06] px-3 py-2 text-[11px] leading-relaxed text-ink-muted">{story.transcript}</p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => onXPost({
-                transcript: story.transcript!,
-                accountId: story.account?.handle ?? '',
-              })}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-ink/[0.1] py-2 text-[11px] font-medium text-ink-muted hover:bg-ink/[0.04] hover:text-ink"
-            >
-              <span className="font-bold">𝕏</span> Criar post no X
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  )
+function igPostPeekModel(p: Post): MediaPeekModel {
+  return {
+    title: p.title,
+    thumbnailUrl: p.thumbnailUrl,
+    videoUrl: p.videoUrl,
+    carouselImages: p.carouselImages,
+  }
 }
 
-function DashTikTokCard({ post, onXPost }: { post: TikTokFeedPost; onXPost: (t: XPostTarget) => void }) {
-  const [transcriptOpen, setTranscriptOpen] = useState(false)
-  const hasVideo = !!post.videoUrl
+function tiktokPostPeekModel(p: TikTokFeedPost): MediaPeekModel {
+  return {
+    title: p.title,
+    thumbnailUrl: p.thumbnailUrl,
+    videoUrl: p.videoUrl,
+  }
+}
 
+function storyPeekModel(s: InstagramStory): MediaPeekModel {
+  return {
+    title: s.account ? `@${s.account.handle} · story` : 'Story',
+    thumbnailUrl: s.thumbnailUrl,
+    videoUrl: s.videoUrl,
+  }
+}
+
+function PostDrawerCarousel({ slides, title }: { slides: string[]; title: string }) {
+  const [slideIndex, setSlideIndex] = useState(0)
   return (
-    <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-      <div className="relative overflow-hidden bg-ink/[0.06]" style={{ aspectRatio: '1/1' }}>
-        {hasVideo ? (
-          <video controls src={post.videoUrl!} poster={post.thumbnailUrl ?? undefined} className="h-full w-full object-cover" />
-        ) : post.thumbnailUrl ? (
-          <img src={post.thumbnailUrl} alt={post.title} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <span className="text-3xl" role="img" aria-label="Sem mídia">🎵</span>
-          </div>
-        )}
-        {hasVideo && <span className="absolute left-2 top-2 rounded bg-ink/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">▶</span>}
-      </div>
-      <div className="space-y-2 p-4">
-        {post.account && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">
-              {post.account.displayName.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-semibold text-ink">{post.account.displayName}</p>
-              <p className="text-[10px] text-ink-muted">{formatNumber(post.account.followers)} seguidores</p>
-            </div>
-          </div>
-        )}
-        {post.title && <p className="line-clamp-2 text-[13px] text-ink">{post.title}</p>}
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] tabular-nums text-ink-muted">
-          <span>{formatNumber(post.views)} views</span>
-          <span>{formatNumber(post.likes)} curtidas</span>
-          <span>{formatNumber(post.shares)} shares</span>
-          <span>{formatNumber(post.comments)} comentários</span>
-        </div>
-        {post.hashtags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {post.hashtags.slice(0, 5).map((tag) => (
-              <span key={tag} className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">#{tag}</span>
-            ))}
-            {post.hashtags.length > 5 && <span className="text-[11px] text-ink-muted">+{post.hashtags.length - 5}</span>}
-          </div>
-        )}
-        {post.postedAt && <p className="text-[11px] text-ink-muted">{formatDate(post.postedAt)}</p>}
-        {post.transcript && (
-          <div className="rounded-xl border border-ink/[0.06] bg-surface">
-            <button
-              type="button"
-              onClick={() => setTranscriptOpen((o) => !o)}
-              className="flex w-full items-center justify-between px-3 py-2.5 text-[13px] font-medium text-ink"
-            >
-              <span>Transcrição</span>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className={transcriptOpen ? 'rotate-180 transition-transform' : 'transition-transform'}>
-                <path d="M2 5l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            {transcriptOpen && (
-              <p className="select-text border-t border-ink/[0.06] px-3 py-2.5 text-[12px] leading-relaxed text-ink-muted">{post.transcript}</p>
-            )}
-          </div>
-        )}
-        <div className="flex gap-2">
-          <a
-            href={post.postUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 rounded-full border border-ink/[0.12] px-3 py-1.5 text-center text-[12px] font-medium text-ink hover:bg-ink/[0.04]"
-          >
-            Ver no TikTok
-          </a>
-          {post.transcript && (
-            <button
-              type="button"
-              onClick={() => onXPost({
-                transcript: post.transcript!,
-                accountId: '',
-              })}
-              className="flex items-center gap-1 rounded-full border border-ink/[0.12] px-3 py-1.5 text-[12px] font-medium text-ink-muted hover:bg-ink/[0.04] hover:text-ink"
-              title="Criar post no X"
-            >
-              <span className="font-bold text-[13px]">𝕏</span>
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="relative">
+      <img src={slides[slideIndex]} alt={`${title} — slide ${slideIndex + 1}`} className="h-64 w-full object-cover" />
+      {slides.length > 1 && (
+        <>
+          <button type="button" onClick={() => setSlideIndex((i) => Math.max(0, i - 1))} disabled={slideIndex === 0} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-ink/50 p-1.5 text-white disabled:opacity-30 hover:bg-ink/70" aria-label="Slide anterior">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+          <button type="button" onClick={() => setSlideIndex((i) => Math.min(slides.length - 1, i + 1))} disabled={slideIndex === slides.length - 1} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-ink/50 p-1.5 text-white disabled:opacity-30 hover:bg-ink/70" aria-label="Próximo slide">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+          <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ink/60 px-2.5 py-0.5 text-[11px] font-medium text-white">{slideIndex + 1} / {slides.length}</span>
+        </>
+      )}
     </div>
   )
 }
 
 function PostDrawer({ post, onClose, onScrapeReels, onXPost }: { post: Post; onClose: () => void; onScrapeReels?: () => void; onXPost?: (t: XPostTarget) => void }) {
   const slides = post.carouselImages?.length ? post.carouselImages : null
-  const [slideIndex, setSlideIndex] = useState(0)
   const [transcriptOpen, setTranscriptOpen] = useState(false)
   const isReel = post.format === 'Reels'
   const hasVideo = isReel && !!post.videoUrl
   const notProcessed = isReel && !post.videoUrl && !post.transcript
 
-  useEffect(() => { setSlideIndex(0) }, [post.id])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -398,20 +250,7 @@ function PostDrawer({ post, onClose, onScrapeReels, onXPost }: { post: Post; onC
             {hasVideo ? (
               <video controls src={post.videoUrl!} poster={post.thumbnailUrl ?? undefined} className="h-64 w-full bg-black object-contain" />
             ) : slides ? (
-              <div className="relative">
-                <img src={slides[slideIndex]} alt={`${post.title} — slide ${slideIndex + 1}`} className="h-64 w-full object-cover" />
-                {slides.length > 1 && (
-                  <>
-                    <button type="button" onClick={() => setSlideIndex((i) => Math.max(0, i - 1))} disabled={slideIndex === 0} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-ink/50 p-1.5 text-white disabled:opacity-30 hover:bg-ink/70" aria-label="Slide anterior">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </button>
-                    <button type="button" onClick={() => setSlideIndex((i) => Math.min(slides.length - 1, i + 1))} disabled={slideIndex === slides.length - 1} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-ink/50 p-1.5 text-white disabled:opacity-30 hover:bg-ink/70" aria-label="Próximo slide">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </button>
-                    <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ink/60 px-2.5 py-0.5 text-[11px] font-medium text-white">{slideIndex + 1} / {slides.length}</span>
-                  </>
-                )}
-              </div>
+              <PostDrawerCarousel key={post.id} slides={slides} title={post.title} />
             ) : post.thumbnailUrl ? (
               <img src={post.thumbnailUrl} alt={post.title} className="h-64 w-full object-cover" onError={(e) => { const el = e.currentTarget.parentElement; if (el) el.innerHTML = '' }} />
             ) : (
@@ -482,6 +321,7 @@ function PostDrawer({ post, onClose, onScrapeReels, onXPost }: { post: Post; onC
 }
 
 export function DashboardPage() {
+  const navigate = useNavigate()
   const { instagramAccounts, isLoading: accountsLoading, loadError: accountsError } = useAppWorkspace()
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('instagram-posts')
@@ -493,13 +333,13 @@ export function DashboardPage() {
   const [igDateTo, setIgDateTo] = useState('2026-03-31')
   const [igFormat, setIgFormat] = useState('')
   const [igPage, setIgPage] = useState(1)
-  const [igView, setIgView] = useState<'posts' | 'galeria'>('posts')
   const [igPosts, setIgPosts] = useState<PostsResponse | null>(null)
   const [igPostsLoading, setIgPostsLoading] = useState(false)
   const [igError, setIgError] = useState<string | null>(null)
   const [igStats, setIgStats] = useState<AccountStats | null>(null)
   const [igStatsLoading, setIgStatsLoading] = useState(false)
   const [drawerPost, setDrawerPost] = useState<Post | null>(null)
+  const [mediaPeek, setMediaPeek] = useState<MediaPeekModel | null>(null)
   const [igRefreshKey, setIgRefreshKey] = useState(0)
 
   const [storiesAccountId, setStoriesAccountId] = useState('')
@@ -689,12 +529,36 @@ export function DashboardPage() {
     ? tiktokAccounts.filter((a) => a.workspace === filterWorkspace)
     : tiktokAccounts
 
-  const selectedAccount = visibleIgAccounts.find((a) => a.id === igAccountId)
   const selectedTiktokAccount = visibleTiktokAccounts.find((a) => a.id === tiktokAccountId)
+  const igPaginationAccount = visibleIgAccounts.find((a) => a.id === igAccountId)
+  const storiesPaginationAccount = visibleIgAccounts.find((a) => a.handle === storiesAccountId)
   const igTotalPages = igPosts ? Math.ceil(igPosts.total / PAGE_LIMIT) : 1
   const recentPosts = igStats?.recentPosts ?? []
   const avgLikes = avg(recentPosts.map((p) => p.likes))
   const posts = igPosts?.data ?? []
+
+  function accountIdForTwitterFromPost(post: Post): string {
+    return igAccountId || post.instagramAccountId || post.accountId || ''
+  }
+
+  function goGenerateTwitterFromDashPost(post: Post) {
+    const accountId = accountIdForTwitterFromPost(post)
+    if (!accountId) return
+    const prefill: GenerateFeedPrefill = {
+      mode: 'post',
+      accountId,
+      sourcePostId: post.id,
+      dashPost: {
+        id: post.id,
+        title: post.title,
+        postedAt: post.postedAt,
+        format: post.format,
+        thumbnailUrl: post.thumbnailUrl ?? null,
+        transcript: post.transcript ?? null,
+      },
+    }
+    navigate('/twitter-posts', { state: { generateFromFeed: prefill } })
+  }
 
   if (accountsLoading) {
     return (
@@ -720,7 +584,7 @@ export function DashboardPage() {
           initialTranscript={xPostTarget.transcript}
           initialAccountId={xPostTarget.accountId || igAccountId}
           onClose={() => setXPostTarget(null)}
-          onCreate={(_post: TwitterLikePost) => setXPostTarget(null)}
+          onCreate={() => setXPostTarget(null)}
         />
       )}
 
@@ -735,6 +599,8 @@ export function DashboardPage() {
           }}
         />
       )}
+
+      <MediaPeekModal model={mediaPeek} onClose={() => setMediaPeek(null)} />
 
       <div className="space-y-8">
         <header>
@@ -764,47 +630,49 @@ export function DashboardPage() {
             ))}
           </div>
 
-          {allWorkspaces.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label htmlFor="filter-workspace" className="whitespace-nowrap text-[13px] font-medium text-ink-muted">
-                Workspace
-              </label>
-              <select
-                id="filter-workspace"
-                value={filterWorkspace}
-                onChange={(e) => {
-                  setFilterWorkspace(e.target.value)
-                  setIgAccountId('')
-                  setIgPage(1)
-                  setStoriesAccountId('')
-                  setStoriesPage(1)
-                  setTiktokAccountId('')
-                  setTiktokPage(1)
-                }}
-                className="rounded-xl border border-ink/[0.1] bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-              >
-                <option value="">Todos os workspaces</option>
-                {allWorkspaces.map((ws) => (
-                  <option key={ws} value={ws}>{ws}</option>
-                ))}
-              </select>
-              {filterWorkspace && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilterWorkspace('')
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {allWorkspaces.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label htmlFor="filter-workspace" className="whitespace-nowrap text-[13px] font-medium text-ink-muted">
+                  Workspace
+                </label>
+                <select
+                  id="filter-workspace"
+                  value={filterWorkspace}
+                  onChange={(e) => {
+                    setFilterWorkspace(e.target.value)
+                    setIgAccountId('')
                     setIgPage(1)
+                    setStoriesAccountId('')
                     setStoriesPage(1)
+                    setTiktokAccountId('')
                     setTiktokPage(1)
                   }}
-                  className="rounded-lg px-2 py-1.5 text-[12px] text-ink-muted hover:bg-ink/[0.06] hover:text-ink"
-                  aria-label="Limpar filtro de workspace"
+                  className="rounded-xl border border-ink/[0.1] bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                 >
-                  ✕
-                </button>
-              )}
-            </div>
-          )}
+                  <option value="">Todos os workspaces</option>
+                  {allWorkspaces.map((ws) => (
+                    <option key={ws} value={ws}>{ws}</option>
+                  ))}
+                </select>
+                {filterWorkspace && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterWorkspace('')
+                      setIgPage(1)
+                      setStoriesPage(1)
+                      setTiktokPage(1)
+                    }}
+                    className="rounded-lg px-2 py-1.5 text-[12px] text-ink-muted hover:bg-ink/[0.06] hover:text-ink"
+                    aria-label="Limpar filtro de workspace"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <section className="rounded-2xl border border-ink/[0.06] bg-card p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
@@ -1000,111 +868,102 @@ export function DashboardPage() {
               {igError && (
                 <p className="mb-4 rounded-xl border border-brand/30 bg-brand/5 px-4 py-3 text-[14px] text-ink">{igError}</p>
               )}
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-1 rounded-xl border border-ink/[0.08] bg-surface p-1">
-                  {(['posts', 'galeria'] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setIgView(tab)}
-                      className={[
-                        'rounded-lg px-4 py-1.5 text-[14px] font-medium capitalize transition',
-                        igView === tab ? 'bg-card text-ink shadow-sm' : 'text-ink-muted hover:text-ink',
-                      ].join(' ')}
-                    >
-                      {tab === 'posts' ? 'Posts' : 'Galeria'}
-                    </button>
-                  ))}
-                </div>
+              <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
                 {igPosts && <p className="text-[13px] text-ink-muted">{igPosts.total.toLocaleString('pt-BR')} publicação(ões)</p>}
               </div>
 
               {igPostsLoading ? (
                 <div className="h-48 animate-pulse rounded-2xl bg-ink/[0.06]" />
-              ) : igView === 'posts' ? (
+              ) : (
                 <>
                   <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[680px] text-left text-[14px]">
+                      <table className="w-full min-w-[720px] text-left text-[14px]">
                         <thead>
                           <tr className="border-b border-ink/[0.06] bg-surface text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                            <th className="w-12 px-3 py-3" />
+                            <th className="w-14 px-3 py-3 font-medium">Mídia</th>
                             <th className="px-5 py-3 font-medium">Post</th>
                             <th className="px-5 py-3 font-medium">Publicado em</th>
                             <th className="px-5 py-3 font-medium">Formato</th>
                             <th className="px-5 py-3 font-medium">Curtidas</th>
                             <th className="px-5 py-3 font-medium">Comentários</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-medium">Twitter</th>
                           </tr>
                         </thead>
                         <tbody>
                           {posts.length === 0 ? (
                             <tr>
-                              <td colSpan={6} className="px-5 py-10 text-center text-[14px] text-ink-muted">
+                              <td colSpan={7} className="px-5 py-10 text-center text-[14px] text-ink-muted">
                                 Nenhuma publicação no período.
                               </td>
                             </tr>
-                          ) : posts.map((p) => (
-                            <tr key={p.id} onClick={() => setDrawerPost(p)} className="cursor-pointer border-b border-ink/[0.04] transition hover:bg-ink/[0.02] last:border-0">
-                              <td className="px-3 py-3">
-                                <div className="relative" style={{ width: 40, height: 40 }}>
-                                  {p.thumbnailUrl ? (
-                                    <img src={p.thumbnailUrl} alt={p.title} width={40} height={40} className="rounded object-cover" style={{ width: 40, height: 40 }} onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                          ) : posts.map((p) => {
+                            const peek = igPostPeekModel(p)
+                            const canPeek = mediaPeekHasVisual(peek)
+                            const twitterAcc = accountIdForTwitterFromPost(p)
+                            return (
+                              <tr key={p.id} className="border-b border-ink/[0.04] transition hover:bg-ink/[0.02] last:border-0">
+                                <td className="px-3 py-3 align-middle">
+                                  {canPeek ? (
+                                    <MediaPeekEyeButton onClick={() => setMediaPeek(peek)} />
                                   ) : (
-                                    <ThumbnailPlaceholder />
+                                    <span className="inline-flex h-9 w-9 items-center justify-center text-[11px] text-ink-subtle">—</span>
                                   )}
+                                </td>
+                                <td className="max-w-[220px] px-5 py-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDrawerPost(p)}
+                                    className="text-left font-medium text-ink hover:text-brand"
+                                  >
+                                    <span className="line-clamp-2">{p.title}</span>
+                                  </button>
                                   {(p.carouselImages?.length ?? 0) > 0 && (
-                                    <span className="absolute right-0.5 top-0.5 rounded bg-ink/70 px-1 text-[9px] font-semibold leading-tight text-white">⧉{p.carouselImages!.length}</span>
+                                    <span className="mt-1 inline-block text-[10px] text-ink-muted">⧉ {p.carouselImages!.length} mídias</span>
                                   )}
-                                </div>
-                              </td>
-                              <td className="max-w-[220px] px-5 py-3 font-medium text-ink"><span className="line-clamp-2">{p.title}</span></td>
-                              <td className="whitespace-nowrap px-5 py-3 text-ink-muted">{formatDate(p.postedAt)}</td>
-                              <td className="px-5 py-3">
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">{p.format}</span>
-                                  {p.transcript && <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Transcript</span>}
-                                </div>
-                              </td>
-                              <td className="px-5 py-3 tabular-nums text-ink-muted">{p.likes.toLocaleString('pt-BR')}</td>
-                              <td className="px-5 py-3 tabular-nums text-ink-muted">{p.comments.toLocaleString('pt-BR')}</td>
-                            </tr>
-                          ))}
+                                </td>
+                                <td className="whitespace-nowrap px-5 py-3 text-ink-muted">{formatDate(p.postedAt)}</td>
+                                <td className="px-5 py-3">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">{p.format}</span>
+                                    {p.transcript && <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Transcript</span>}
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3 tabular-nums text-ink-muted">{p.likes.toLocaleString('pt-BR')}</td>
+                                <td className="px-5 py-3 tabular-nums text-ink-muted">{p.comments.toLocaleString('pt-BR')}</td>
+                                <td className="whitespace-nowrap px-4 py-3 align-middle">
+                                  <button
+                                    type="button"
+                                    onClick={() => goGenerateTwitterFromDashPost(p)}
+                                    disabled={!twitterAcc}
+                                    title={
+                                      twitterAcc
+                                        ? undefined
+                                        : 'Selecione uma conta Instagram no filtro acima para definir o perfil do card.'
+                                    }
+                                    className="rounded-lg border border-ink/[0.12] px-3 py-1.5 text-[12px] font-semibold text-brand hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    Gerar Twitter Post
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
                   </div>
-                  <Pagination page={igPage} pages={igTotalPages} total={igPosts?.total ?? 0} label="publicações" onPrev={() => setIgPage((p) => Math.max(1, p - 1))} onNext={() => setIgPage((p) => Math.min(igTotalPages, p + 1))} />
-                </>
-              ) : (
-                <>
-                  {posts.length === 0 ? (
-                    <p className="rounded-2xl border border-dashed border-ink/[0.12] bg-surface px-6 py-16 text-center text-[14px] text-ink-muted">
-                      Nenhuma publicação no período.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                      {posts.map((p) => (
-                        <button key={p.id} type="button" onClick={() => setDrawerPost(p)} className="group relative overflow-hidden rounded-xl" style={{ aspectRatio: '1/1' }}>
-                          {p.thumbnailUrl ? (
-                            <img src={p.thumbnailUrl} alt={p.title} className="h-full w-full object-cover transition group-hover:scale-[1.03]" onError={(e) => { const parent = e.currentTarget.parentElement; if (parent) { e.currentTarget.remove(); const ph = document.createElement('div'); ph.className = 'flex h-full w-full items-center justify-center bg-ink/[0.06]'; parent.appendChild(ph) } }} />
-                          ) : (
-                            <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-ink/[0.06]">
-                              <span className="text-2xl" role="img" aria-label="Imagem indisponível">🖼️</span>
-                              <span className="text-[10px] text-ink-subtle">Indisponível</span>
-                            </div>
-                          )}
-                          {(p.carouselImages?.length ?? 0) > 0 && <span className="absolute right-1.5 top-1.5 rounded bg-ink/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">⧉ {p.carouselImages!.length}</span>}
-                          {p.format === 'Reels' && p.videoUrl && <span className="absolute left-1.5 top-1.5 rounded bg-ink/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">▶</span>}
-                          {p.transcript && <span className="absolute bottom-1.5 right-1.5 z-10 rounded bg-emerald-600/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">T</span>}
-                          <div className="absolute inset-0 flex items-center justify-center gap-4 bg-ink/50 text-[13px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                            <span>❤️ {p.likes.toLocaleString('pt-BR')}</span>
-                            <span>💬 {p.comments.toLocaleString('pt-BR')}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <Pagination page={igPage} pages={igTotalPages} total={igPosts?.total ?? 0} label="publicações" onPrev={() => setIgPage((p) => Math.max(1, p - 1))} onNext={() => setIgPage((p) => Math.min(igTotalPages, p + 1))} />
+                  <PaginationWithChannel
+                    page={igPage}
+                    pages={igTotalPages}
+                    total={igPosts?.total ?? 0}
+                    countLabel="publicações"
+                    onPrev={() => setIgPage((p) => Math.max(1, p - 1))}
+                    onNext={() => setIgPage((p) => Math.min(igTotalPages, p + 1))}
+                    platform="instagram"
+                    channelImageUrl={igPaginationAccount?.profilePicS3Url}
+                    channelTitle={igPaginationAccount ? `@${igPaginationAccount.handle}` : undefined}
+                  />
                 </>
               )}
             </>
@@ -1126,11 +985,7 @@ export function DashboardPage() {
                 </p>
               </div>
               {storiesLoading ? (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="animate-pulse rounded-2xl bg-ink/[0.06]" style={{ aspectRatio: '9/16' }} />
-                  ))}
-                </div>
+                <div className="h-40 animate-pulse rounded-2xl bg-ink/[0.06]" />
               ) : storiesError ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-[14px] text-red-900 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
                   <p className="font-semibold">Erro ao carregar stories</p>
@@ -1144,14 +999,90 @@ export function DashboardPage() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                  {storiesData.data.map((story) => (
-                    <DashStoryCard key={story.id} story={story} onXPost={setXPostTarget} />
-                  ))}
+                <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[800px] text-left text-[13px]">
+                      <thead>
+                        <tr className="border-b border-ink/[0.06] bg-surface text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                          <th className="w-14 px-3 py-3">Mídia</th>
+                          <th className="px-4 py-3">Conta</th>
+                          <th className="px-4 py-3">Tipo</th>
+                          <th className="px-4 py-3">Sync</th>
+                          <th className="px-4 py-3">Expira</th>
+                          <th className="px-4 py-3">Transcrição</th>
+                          <th className="px-4 py-3">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {storiesData.data.map((story) => {
+                          const peek = storyPeekModel(story)
+                          const canPeek = mediaPeekHasVisual(peek)
+                          return (
+                            <tr key={story.id} className="border-b border-ink/[0.04] last:border-0">
+                              <td className="px-3 py-3 align-middle">
+                                {canPeek ? (
+                                  <MediaPeekEyeButton onClick={() => setMediaPeek(peek)} />
+                                ) : (
+                                  <span className="inline-flex h-9 w-9 items-center justify-center text-[11px] text-ink-subtle">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {story.account ? (
+                                  <div>
+                                    <p className="font-medium text-ink">{story.account.displayName}</p>
+                                    <p className="text-[11px] text-ink-muted">@{story.account.handle}</p>
+                                  </div>
+                                ) : '—'}
+                              </td>
+                              <td className="px-4 py-3 text-ink-muted">{story.mediaType === 'video' ? 'Vídeo' : 'Imagem'}</td>
+                              <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{formatDate(story.syncedAt)}</td>
+                              <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{story.expiresAt ? formatDate(story.expiresAt) : '—'}</td>
+                              <td className="max-w-[200px] px-4 py-3">
+                                {story.transcript ? (
+                                  <details className="text-[12px]">
+                                    <summary className="cursor-pointer text-brand">Ver</summary>
+                                    <p className="mt-1 max-h-28 overflow-y-auto text-ink-muted">{story.transcript}</p>
+                                  </details>
+                                ) : (
+                                  <span className="text-ink-subtle">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {story.transcript ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setXPostTarget({
+                                      transcript: story.transcript!,
+                                      accountId: story.account?.handle ?? '',
+                                    })}
+                                    className="text-[12px] font-medium text-brand hover:underline"
+                                  >
+                                    𝕏 Post
+                                  </button>
+                                ) : (
+                                  <span className="text-ink-subtle">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
               {storiesData && (
-                <Pagination page={storiesPage} pages={storiesData.pages} total={storiesData.total} label="stories" onPrev={() => setStoriesPage((p) => Math.max(1, p - 1))} onNext={() => setStoriesPage((p) => Math.min(storiesData.pages, p + 1))} />
+                <PaginationWithChannel
+                  page={storiesPage}
+                  pages={storiesData.pages}
+                  total={storiesData.total}
+                  countLabel="stories"
+                  onPrev={() => setStoriesPage((p) => Math.max(1, p - 1))}
+                  onNext={() => setStoriesPage((p) => Math.min(storiesData.pages, p + 1))}
+                  platform="instagram"
+                  channelImageUrl={storiesPaginationAccount?.profilePicS3Url}
+                  channelTitle={storiesPaginationAccount ? `@${storiesPaginationAccount.handle}` : undefined}
+                />
               )}
             </>
           )}
@@ -1164,11 +1095,7 @@ export function DashboardPage() {
                 </p>
               )}
               {tiktokLoading ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="animate-pulse rounded-2xl bg-ink/[0.06]" style={{ aspectRatio: '1/1' }} />
-                  ))}
-                </div>
+                <div className="h-40 animate-pulse rounded-2xl bg-ink/[0.06]" />
               ) : tiktokError ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-[14px] text-red-900 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
                   <p className="font-semibold">Erro ao carregar posts TikTok</p>
@@ -1179,14 +1106,94 @@ export function DashboardPage() {
                   Nenhum post encontrado para os filtros selecionados.
                 </p>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {tiktokData.data.map((post) => (
-                    <DashTikTokCard key={post.id} post={post} onXPost={setXPostTarget} />
-                  ))}
+                <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[900px] text-left text-[13px]">
+                      <thead>
+                        <tr className="border-b border-ink/[0.06] bg-surface text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                          <th className="w-14 px-3 py-3">Mídia</th>
+                          <th className="px-4 py-3">Título</th>
+                          <th className="px-4 py-3">Conta</th>
+                          <th className="px-4 py-3">Views</th>
+                          <th className="px-4 py-3">Curtidas</th>
+                          <th className="px-4 py-3">Data</th>
+                          <th className="px-4 py-3">Links</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tiktokData.data.map((post) => {
+                          const peek = tiktokPostPeekModel(post)
+                          const canPeek = mediaPeekHasVisual(peek)
+                          return (
+                            <tr key={post.id} className="border-b border-ink/[0.04] last:border-0">
+                              <td className="px-3 py-3 align-middle">
+                                {canPeek ? (
+                                  <MediaPeekEyeButton onClick={() => setMediaPeek(peek)} />
+                                ) : (
+                                  <span className="inline-flex h-9 w-9 items-center justify-center text-[11px] text-ink-subtle">—</span>
+                                )}
+                              </td>
+                              <td className="max-w-[240px] px-4 py-3 font-medium text-ink">
+                                <span className="line-clamp-2">{post.title || '—'}</span>
+                              </td>
+                              <td className="px-4 py-3 text-ink-muted">
+                                {post.account?.displayName ?? '—'}
+                              </td>
+                              <td className="px-4 py-3 tabular-nums text-ink-muted">{formatNumber(post.views)}</td>
+                              <td className="px-4 py-3 tabular-nums text-ink-muted">{formatNumber(post.likes)}</td>
+                              <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
+                                {post.postedAt ? formatDate(post.postedAt) : '—'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-2">
+                                  <a
+                                    href={post.postUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[12px] font-medium text-brand hover:underline"
+                                  >
+                                    TikTok
+                                  </a>
+                                  {post.transcript && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setXPostTarget({
+                                        transcript: post.transcript!,
+                                        accountId: '',
+                                      })}
+                                      className="text-[12px] font-medium text-ink-muted hover:text-ink"
+                                    >
+                                      𝕏
+                                    </button>
+                                  )}
+                                </div>
+                                {post.transcript && (
+                                  <details className="mt-1 text-[11px]">
+                                    <summary className="cursor-pointer text-brand">Transcrição</summary>
+                                    <p className="mt-1 max-h-24 overflow-y-auto text-ink-muted">{post.transcript}</p>
+                                  </details>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
               {tiktokData && (
-                <Pagination page={tiktokPage} pages={tiktokData.pages} total={tiktokData.total} label="posts" onPrev={() => setTiktokPage((p) => Math.max(1, p - 1))} onNext={() => setTiktokPage((p) => Math.min(tiktokData.pages, p + 1))} />
+                <PaginationWithChannel
+                  page={tiktokPage}
+                  pages={tiktokData.pages}
+                  total={tiktokData.total}
+                  countLabel="posts"
+                  onPrev={() => setTiktokPage((p) => Math.max(1, p - 1))}
+                  onNext={() => setTiktokPage((p) => Math.min(tiktokData.pages, p + 1))}
+                  platform="tiktok"
+                  channelImageUrl={selectedTiktokAccount?.profilePicUrl}
+                  channelTitle={selectedTiktokAccount ? `@${selectedTiktokAccount.handle}` : undefined}
+                />
               )}
             </>
           )}

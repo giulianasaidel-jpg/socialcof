@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { MediaPeekEyeButton, MediaPeekModal } from '../components/MediaPeek'
+import type { MediaPeekModel } from '../lib/mediaPeek'
+import { mediaPeekHasVisual } from '../lib/mediaPeek'
 import { useAuth } from '../context/AuthContext'
 import { useAppWorkspace } from '../context/AppWorkspaceContext'
 import { api } from '../lib/api'
@@ -61,111 +64,8 @@ function formatNumber(n: number) {
   return n.toLocaleString('pt-BR')
 }
 
-function TikTokPostCard({ post }: { post: TikTokPost }) {
-  const [transcriptOpen, setTranscriptOpen] = useState(false)
-  const hasVideo = !!post.videoUrl
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-      <div className="relative overflow-hidden bg-ink/[0.06]" style={{ aspectRatio: '1/1' }}>
-        {hasVideo ? (
-          <video
-            controls
-            src={post.videoUrl!}
-            poster={post.thumbnailUrl ?? undefined}
-            className="h-full w-full object-cover"
-          />
-        ) : post.thumbnailUrl ? (
-          <img
-            src={post.thumbnailUrl}
-            alt={post.text}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <span className="text-3xl" role="img" aria-label="Sem mídia">🎵</span>
-          </div>
-        )}
-        {hasVideo && (
-          <span className="absolute left-2 top-2 rounded bg-ink/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-            ▶
-          </span>
-        )}
-      </div>
-
-      <div className="space-y-3 p-4">
-        {post.text && (
-          <p className="line-clamp-2 text-[13px] text-ink">{post.text}</p>
-        )}
-
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] tabular-nums text-ink-muted">
-          <span>{formatNumber(post.views)} views</span>
-          <span>{formatNumber(post.likes)} curtidas</span>
-          <span>{formatNumber(post.shares)} shares</span>
-          <span>{formatNumber(post.comments)} comentários</span>
-        </div>
-
-        {post.hashtags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {post.hashtags.slice(0, 5).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand"
-              >
-                #{tag}
-              </span>
-            ))}
-            {post.hashtags.length > 5 && (
-              <span className="text-[11px] text-ink-muted">
-                +{post.hashtags.length - 5}
-              </span>
-            )}
-          </div>
-        )}
-
-        {post.transcript && (
-          <div className="rounded-xl border border-ink/[0.06] bg-surface">
-            <button
-              type="button"
-              onClick={() => setTranscriptOpen((o) => !o)}
-              className="flex w-full items-center justify-between px-3 py-2.5 text-[13px] font-medium text-ink"
-            >
-              <span>Transcrição</span>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                className={transcriptOpen ? 'rotate-180 transition-transform' : 'transition-transform'}
-              >
-                <path
-                  d="M2 5l5 5 5-5"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            {transcriptOpen && (
-              <p className="select-text border-t border-ink/[0.06] px-3 py-2.5 text-[12px] leading-relaxed text-ink-muted">
-                {post.transcript}
-              </p>
-            )}
-          </div>
-        )}
-
-        <a
-          href={post.postUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block rounded-full border border-ink/[0.12] px-3 py-1.5 text-center text-[12px] font-medium text-ink hover:bg-ink/[0.04]"
-        >
-          Ver no TikTok
-        </a>
-      </div>
-    </div>
-  )
+function scrapedPostPeek(post: TikTokPost): MediaPeekModel {
+  return { title: post.text || 'Post', thumbnailUrl: post.thumbnailUrl, videoUrl: post.videoUrl }
 }
 
 type AccountCardProps = {
@@ -288,6 +188,7 @@ export function TikTokAccountsPage() {
   const [scrapeElapsed, setScrapeElapsed] = useState(0)
   const [scrapeResult, setScrapeResult] = useState<ScrapeTikTokPostsResponse | null>(null)
   const [scrapeError, setScrapeError] = useState<string | null>(null)
+  const [mediaPeek, setMediaPeek] = useState<MediaPeekModel | null>(null)
   const scrapeTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -361,7 +262,9 @@ export function TikTokAccountsPage() {
         setScrapeResult(null)
       }
       void loadAccounts()
-    } catch {}
+    } catch {
+      void 0
+    }
   }
 
   /**
@@ -394,6 +297,7 @@ export function TikTokAccountsPage() {
 
   return (
     <div className="space-y-10">
+      <MediaPeekModal model={mediaPeek} onClose={() => setMediaPeek(null)} />
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
           Social
@@ -575,10 +479,58 @@ export function TikTokAccountsPage() {
           </div>
 
           {scrapeResult && scrapeResult.posts.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {scrapeResult.posts.map((post) => (
-                <TikTokPostCard key={post.id} post={post} />
-              ))}
+            <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px] text-left text-[13px]">
+                  <thead>
+                    <tr className="border-b border-ink/[0.06] bg-surface text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                      <th className="w-14 px-3 py-3">Mídia</th>
+                      <th className="px-4 py-3">Texto</th>
+                      <th className="px-4 py-3">Views</th>
+                      <th className="px-4 py-3">Curtidas</th>
+                      <th className="px-4 py-3">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scrapeResult.posts.map((post) => {
+                      const peek = scrapedPostPeek(post)
+                      const canPeek = mediaPeekHasVisual(peek)
+                      return (
+                        <tr key={post.id} className="border-b border-ink/[0.04] last:border-0">
+                          <td className="px-3 py-3 align-middle">
+                            {canPeek ? (
+                              <MediaPeekEyeButton onClick={() => setMediaPeek(peek)} />
+                            ) : (
+                              <span className="inline-flex h-9 w-9 items-center justify-center text-ink-subtle">—</span>
+                            )}
+                          </td>
+                          <td className="max-w-[280px] px-4 py-3">
+                            <span className="line-clamp-2 text-ink">{post.text || '—'}</span>
+                          </td>
+                          <td className="px-4 py-3 tabular-nums text-ink-muted">{formatNumber(post.views)}</td>
+                          <td className="px-4 py-3 tabular-nums text-ink-muted">{formatNumber(post.likes)}</td>
+                          <td className="px-4 py-3">
+                            <a
+                              href={post.postUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[12px] font-medium text-brand hover:underline"
+                            >
+                              TikTok
+                            </a>
+                            {post.transcript && (
+                              <details className="mt-1 text-[11px]">
+                                <summary className="cursor-pointer text-brand">Transcrição</summary>
+                                <p className="mt-1 max-h-24 overflow-y-auto text-ink-muted">{post.transcript}</p>
+                              </details>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

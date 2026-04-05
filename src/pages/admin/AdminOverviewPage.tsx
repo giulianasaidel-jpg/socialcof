@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useAppWorkspace } from '../../context/AppWorkspaceContext'
 import { api } from '../../lib/api'
 
@@ -73,6 +73,17 @@ export function AdminOverviewPage() {
   const [bulkLoading, setBulkLoading] = useState(false)
   const [bulkError, setBulkError] = useState('')
   const [bulkResponse, setBulkResponse] = useState<BulkDiscoverResponse | null>(null)
+
+  const workspaces = useMemo(
+    () => [...new Set(instagramAccounts.map((a) => a.workspace).filter(Boolean))] as string[],
+    [instagramAccounts],
+  )
+
+  useEffect(() => {
+    if (workspaces.length === 0) return
+    if (!workspaces.includes(discoverWorkspace)) setDiscoverWorkspace(workspaces[0])
+    if (!workspaces.includes(bulkWorkspace)) setBulkWorkspace(workspaces[0])
+  }, [workspaces])
 
   useEffect(() => {
     api
@@ -283,13 +294,17 @@ export function AdminOverviewPage() {
             >
               Workspace
             </label>
-            <input
+            <select
               id="discover-workspace"
               value={discoverWorkspace}
               onChange={(e) => setDiscoverWorkspace(e.target.value)}
-              placeholder="medcof"
-              className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-            />
+              disabled={workspaces.length === 0}
+              className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
+            >
+              {workspaces.map((ws) => (
+                <option key={ws} value={ws}>{ws}</option>
+              ))}
+            </select>
           </div>
           <div className="flex items-end">
             <button
@@ -390,13 +405,17 @@ export function AdminOverviewPage() {
             <label htmlFor="bulk-workspace" className="text-sm font-medium text-ink">
               Workspace
             </label>
-            <input
+            <select
               id="bulk-workspace"
               value={bulkWorkspace}
               onChange={(e) => setBulkWorkspace(e.target.value)}
-              placeholder="medcof"
-              className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-            />
+              disabled={workspaces.length === 0}
+              className="mt-2 w-full rounded-xl border border-ink/[0.1] bg-surface px-4 py-3 text-[15px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
+            >
+              {workspaces.map((ws) => (
+                <option key={ws} value={ws}>{ws}</option>
+              ))}
+            </select>
           </div>
           <div className="flex items-end">
             <button

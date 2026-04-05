@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import { PaginationWithChannel } from '../components/PaginationWithChannel'
+import { MediaPeekEyeButton, MediaPeekModal } from '../components/MediaPeek'
+import type { MediaPeekModel } from '../lib/mediaPeek'
+import { mediaPeekHasVisual } from '../lib/mediaPeek'
 import { api } from '../lib/api'
 
 type PostAccount = {
@@ -36,6 +40,7 @@ type TikTokAccountOption = {
   id: string
   handle: string
   displayName: string
+  profilePicUrl?: string | null
 }
 
 type TikTokAccountsResponse = {
@@ -58,110 +63,8 @@ function formatNumber(n: number) {
   return n.toLocaleString('pt-BR')
 }
 
-function TikTokFeedPostCard({ post }: { post: TikTokFeedPost }) {
-  const [transcriptOpen, setTranscriptOpen] = useState(false)
-  const hasVideo = !!post.videoUrl
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-      <div className="relative overflow-hidden bg-ink/[0.06]" style={{ aspectRatio: '1/1' }}>
-        {hasVideo ? (
-          <video
-            controls
-            src={post.videoUrl!}
-            poster={post.thumbnailUrl ?? undefined}
-            className="h-full w-full object-cover"
-          />
-        ) : post.thumbnailUrl ? (
-          <img src={post.thumbnailUrl} alt={post.title} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <span className="text-3xl" role="img" aria-label="Sem mídia">🎵</span>
-          </div>
-        )}
-        {hasVideo && (
-          <span className="absolute left-2 top-2 rounded bg-ink/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-            ▶
-          </span>
-        )}
-      </div>
-
-      <div className="space-y-2 p-4">
-        {post.account && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">
-              {post.account.displayName.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-semibold text-ink">{post.account.displayName}</p>
-              <p className="text-[10px] text-ink-muted">{formatNumber(post.account.followers)} seguidores</p>
-            </div>
-          </div>
-        )}
-
-        {post.title && <p className="line-clamp-2 text-[13px] text-ink">{post.title}</p>}
-
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] tabular-nums text-ink-muted">
-          <span>{formatNumber(post.views)} views</span>
-          <span>{formatNumber(post.likes)} curtidas</span>
-          <span>{formatNumber(post.shares)} shares</span>
-          <span>{formatNumber(post.comments)} comentários</span>
-        </div>
-
-        {post.hashtags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {post.hashtags.slice(0, 5).map((tag) => (
-              <span key={tag} className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">
-                #{tag}
-              </span>
-            ))}
-            {post.hashtags.length > 5 && (
-              <span className="text-[11px] text-ink-muted">+{post.hashtags.length - 5}</span>
-            )}
-          </div>
-        )}
-
-        {post.postedAt && (
-          <p className="text-[11px] text-ink-muted">{formatDate(post.postedAt)}</p>
-        )}
-
-        {post.transcript && (
-          <div className="rounded-xl border border-ink/[0.06] bg-surface">
-            <button
-              type="button"
-              onClick={() => setTranscriptOpen((o) => !o)}
-              className="flex w-full items-center justify-between px-3 py-2.5 text-[13px] font-medium text-ink"
-            >
-              <span>Transcrição</span>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                className={transcriptOpen ? 'rotate-180 transition-transform' : 'transition-transform'}
-              >
-                <path d="M2 5l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            {transcriptOpen && (
-              <p className="select-text border-t border-ink/[0.06] px-3 py-2.5 text-[12px] leading-relaxed text-ink-muted">
-                {post.transcript}
-              </p>
-            )}
-          </div>
-        )}
-
-        <a
-          href={post.postUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block rounded-full border border-ink/[0.12] px-3 py-1.5 text-center text-[12px] font-medium text-ink hover:bg-ink/[0.04]"
-        >
-          Ver no TikTok
-        </a>
-      </div>
-    </div>
-  )
+function postPeek(post: TikTokFeedPost): MediaPeekModel {
+  return { title: post.title, thumbnailUrl: post.thumbnailUrl, videoUrl: post.videoUrl }
 }
 
 /**
@@ -177,6 +80,7 @@ export function TikTokPostsPage() {
   const [data, setData] = useState<TikTokPostsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mediaPeek, setMediaPeek] = useState<MediaPeekModel | null>(null)
 
   useEffect(() => {
     api
@@ -210,8 +114,11 @@ export function TikTokPostsPage() {
     setPage(1)
   }
 
+  const tiktokPaginationAccount = accounts.find((a) => a.handle === accountId)
+
   return (
     <div className="space-y-8">
+      <MediaPeekModal model={mediaPeek} onClose={() => setMediaPeek(null)} />
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">TikTok</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">Posts</h1>
@@ -272,11 +179,7 @@ export function TikTokPostsPage() {
         )}
 
         {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="animate-pulse rounded-2xl bg-ink/[0.06]" style={{ aspectRatio: '1/1' }} />
-            ))}
-          </div>
+          <div className="h-40 animate-pulse rounded-2xl bg-ink/[0.06]" />
         ) : error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-[14px] text-red-900 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
             <p className="font-semibold">Erro ao carregar posts TikTok</p>
@@ -287,35 +190,79 @@ export function TikTokPostsPage() {
             Nenhum post encontrado para os filtros selecionados.
           </p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {data.data.map((post) => (
-              <TikTokFeedPostCard key={post.id} post={post} />
-            ))}
+          <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[880px] text-left text-[13px]">
+                <thead>
+                  <tr className="border-b border-ink/[0.06] bg-surface text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                    <th className="w-14 px-3 py-3">Mídia</th>
+                    <th className="px-4 py-3">Título</th>
+                    <th className="px-4 py-3">Conta</th>
+                    <th className="px-4 py-3">Views</th>
+                    <th className="px-4 py-3">Curtidas</th>
+                    <th className="px-4 py-3">Data</th>
+                    <th className="px-4 py-3">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.data.map((post) => {
+                    const peek = postPeek(post)
+                    const canPeek = mediaPeekHasVisual(peek)
+                    return (
+                      <tr key={post.id} className="border-b border-ink/[0.04] last:border-0">
+                        <td className="px-3 py-3 align-middle">
+                          {canPeek ? (
+                            <MediaPeekEyeButton onClick={() => setMediaPeek(peek)} />
+                          ) : (
+                            <span className="inline-flex h-9 w-9 items-center justify-center text-ink-subtle">—</span>
+                          )}
+                        </td>
+                        <td className="max-w-[220px] px-4 py-3 font-medium text-ink">
+                          <span className="line-clamp-2">{post.title || '—'}</span>
+                        </td>
+                        <td className="px-4 py-3 text-ink-muted">{post.account?.displayName ?? '—'}</td>
+                        <td className="px-4 py-3 tabular-nums text-ink-muted">{formatNumber(post.views)}</td>
+                        <td className="px-4 py-3 tabular-nums text-ink-muted">{formatNumber(post.likes)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
+                          {post.postedAt ? formatDate(post.postedAt) : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <a
+                            href={post.postUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[12px] font-medium text-brand hover:underline"
+                          >
+                            TikTok
+                          </a>
+                          {post.transcript && (
+                            <details className="mt-1 text-[11px]">
+                              <summary className="cursor-pointer text-brand">Transcrição</summary>
+                              <p className="mt-1 max-h-24 overflow-y-auto text-ink-muted">{post.transcript}</p>
+                            </details>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
-        {data && data.pages > 1 && (
-          <div className="mt-6 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="rounded-full border border-ink/[0.1] px-4 py-2 text-[14px] font-medium text-ink hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Anterior
-            </button>
-            <span className="text-[13px] text-ink-muted">
-              Página {page} de {data.pages} · {data.total.toLocaleString('pt-BR')} posts
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(data.pages, p + 1))}
-              disabled={page >= data.pages}
-              className="rounded-full border border-ink/[0.1] px-4 py-2 text-[14px] font-medium text-ink hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Próxima
-            </button>
-          </div>
+        {data && (
+          <PaginationWithChannel
+            page={page}
+            pages={data.pages}
+            total={data.total}
+            countLabel="posts"
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(data.pages, p + 1))}
+            platform="tiktok"
+            channelImageUrl={tiktokPaginationAccount?.profilePicUrl}
+            channelTitle={tiktokPaginationAccount ? `@${tiktokPaginationAccount.handle}` : undefined}
+          />
         )}
       </section>
     </div>

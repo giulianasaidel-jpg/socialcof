@@ -95,6 +95,7 @@ export type MedCofInstagramAccount = {
   /** Seguidores fictícios (protótipo). */
   followers: number
   workspace?: string
+  profilePicS3Url?: string | null
 }
 
 function medCofFollowerCount(accountId: string): number {

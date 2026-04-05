@@ -18,6 +18,8 @@ import { BrandingPage } from './pages/BrandingPage'
 import { TikTokAccountsPage } from './pages/TikTokAccountsPage'
 import { TikTokPostsPage } from './pages/TikTokPostsPage'
 import { InstagramStoriesPage } from './pages/InstagramStoriesPage'
+import { StoryRepliesPage } from './pages/StoryRepliesPage'
+import { ImagePostsPage } from './pages/ImagePostsPage'
 import { CentralDePerfilsPage } from './pages/CentralDePerfilsPage'
 import { InstagramInterestsPage } from './pages/InstagramInterestsPage'
 import { CentralDeSitesPage } from './pages/CentralDeSitesPage'
@@ -109,6 +111,8 @@ function App() {
               <Route path="tiktok" element={<TikTokAccountsPage />} />
               <Route path="tiktok-posts" element={<TikTokPostsPage />} />
               <Route path="instagram-stories" element={<InstagramStoriesPage />} />
+              <Route path="story-replies" element={<StoryRepliesPage />} />
+              <Route path="image-posts" element={<ImagePostsPage />} />
               <Route path="central-de-perfis" element={<CentralDePerfilsPage />} />
               <Route path="interesses-por-perfil" element={<InstagramInterestsPage />} />
               <Route path="admin" element={<AdminOverviewPage />} />

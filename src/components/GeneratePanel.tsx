@@ -113,6 +113,8 @@ const NEWS_WORKSPACE_LABELS: Record<string, string> = {
   creators: 'Creators',
 }
 
+const AVATAR_WORKSPACE_IDS = new Set(['medcof', 'professor medcof'])
+
 export const TONE_SUGGESTIONS = [
   'educativo e direto',
   'empático',
@@ -254,7 +256,7 @@ export function GeneratePanel({
   }
   initialFeedPrefill?: GenerateFeedPrefill | null
 }) {
-  const { instagramAccounts, workspaceId, products } = useAppWorkspace()
+  const { instagramAccounts, workspaceId } = useAppWorkspace()
   const [sourceMode, setSourceMode] = useState<SourceMode>(() => {
     if (initialNewsSelection) return 'news'
     if (initialTranscript) return 'text'
@@ -267,7 +269,6 @@ export function GeneratePanel({
   const [avatarAccountId, setAvatarAccountId] = useState(
     () => initialFeedPrefill?.accountId ?? initialAccountId ?? '',
   )
-  const [productId, setProductId] = useState('')
   const [tiktokAccounts, setTiktokAccounts] = useState<TikTokAccountOption[]>([])
   const [tiktokAccountId, setTiktokAccountId] = useState(
     () => (initialFeedPrefill?.mode === 'tiktok' ? initialFeedPrefill.tiktokAccountId ?? '' : ''),
@@ -351,6 +352,11 @@ export function GeneratePanel({
     return [...ids].sort((x, y) => x.localeCompare(y))
   }, [instagramAccounts])
 
+  const profileAvatarAccountOptions = useMemo(
+    () => instagramAccounts.filter((a) => a.workspace != null && AVATAR_WORKSPACE_IDS.has(a.workspace)),
+    [instagramAccounts],
+  )
+
   useEffect(() => {
     setNewsWorkspaceFilter(workspaceId)
   }, [workspaceId])
@@ -383,16 +389,16 @@ export function GeneratePanel({
     if (!accountId && instagramAccounts.length > 0) {
       setAccountId(instagramAccounts[0].id)
     }
-    if (!avatarAccountId && instagramAccounts.length > 0) {
-      setAvatarAccountId(instagramAccounts[0].id)
+    if (!avatarAccountId && profileAvatarAccountOptions.length > 0) {
+      setAvatarAccountId(profileAvatarAccountOptions[0].id)
     }
-  }, [instagramAccounts, accountId, avatarAccountId, initialFeedPrefill])
+  }, [instagramAccounts, profileAvatarAccountOptions, accountId, avatarAccountId, initialFeedPrefill])
 
   useEffect(() => {
-    if (!productId && products.length > 0) {
-      setProductId(products[0].id)
-    }
-  }, [products, productId])
+    if (profileAvatarAccountOptions.length === 0) return
+    if (profileAvatarAccountOptions.some((a) => a.id === avatarAccountId)) return
+    setAvatarAccountId(profileAvatarAccountOptions[0].id)
+  }, [profileAvatarAccountOptions, avatarAccountId])
 
   useEffect(() => {
     api
@@ -526,7 +532,6 @@ export function GeneratePanel({
 
     const body: Record<string, unknown> = {
       accountId,
-      productId,
       mode,
       bodyFontSize,
       ...(profileName && { profileName }),
@@ -1299,24 +1304,9 @@ export function GeneratePanel({
                 onChange={(e) => setAvatarAccountId(e.target.value)}
                 className={inputCls}
               >
-                {instagramAccounts.map((a) => (
+                {profileAvatarAccountOptions.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.displayName} (@{a.handle})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>Produto</label>
-              <select
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
-                className={inputCls}
-              >
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
                   </option>
                 ))}
               </select>
@@ -1362,55 +1352,16 @@ export function GeneratePanel({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Nome do perfil</label>
-                <input
-                  type="text"
-                  value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  placeholder="MedCof"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Handle</label>
-                <input
-                  type="text"
-                  value={profileHandle}
-                  onChange={(e) => setProfileHandle(e.target.value)}
-                  placeholder="augustocelho.medcof"
-                  className={inputCls}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className={labelCls}>
-                Avatar
-                {profileImageUrl && (
-                  <span className="ml-2 text-[11px] font-normal text-ink-subtle">
-                    preenchido do branding
-                  </span>
-                )}
-              </label>
+            {profileImageUrl && (
               <div className="flex items-center gap-2">
-                {profileImageUrl && (
-                  <img
-                    src={profileImageUrl}
-                    alt=""
-                    className="h-8 w-8 shrink-0 rounded-full object-cover"
-                  />
-                )}
-                <input
-                  type="url"
-                  value={profileImageUrl}
-                  onChange={(e) => setProfileImageUrl(e.target.value)}
-                  placeholder="https://…"
-                  className={inputCls}
+                <img
+                  src={profileImageUrl}
+                  alt=""
+                  className="h-8 w-8 shrink-0 rounded-full object-cover"
                 />
+                <span className="text-[13px] text-ink-muted">Avatar preenchido do branding</span>
               </div>
-            </div>
+            )}
 
             {sourceMode !== 'direct' && (
               <div className="grid grid-cols-2 gap-3">

@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import { PaginationWithChannel } from '../components/PaginationWithChannel'
+import { MediaPeekEyeButton, MediaPeekModal } from '../components/MediaPeek'
+import type { MediaPeekModel } from '../lib/mediaPeek'
+import { mediaPeekHasVisual } from '../lib/mediaPeek'
 import { useAppWorkspace } from '../context/AppWorkspaceContext'
 import { api } from '../lib/api'
 
@@ -44,81 +48,12 @@ function formatNumber(n: number) {
   return n.toLocaleString('pt-BR')
 }
 
-function StoryCard({ story }: { story: InstagramStory }) {
-  const [transcriptOpen, setTranscriptOpen] = useState(false)
-  const hasVideo = story.mediaType === 'video' && !!story.videoUrl
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-      <div className="relative overflow-hidden bg-ink/[0.06]" style={{ aspectRatio: '9/16' }}>
-        {hasVideo ? (
-          <video
-            controls
-            src={story.videoUrl!}
-            poster={story.thumbnailUrl ?? undefined}
-            className="h-full w-full object-cover"
-          />
-        ) : story.thumbnailUrl ? (
-          <img src={story.thumbnailUrl} alt="Story" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <span className="text-2xl" role="img" aria-label="Sem mídia">🖼️</span>
-          </div>
-        )}
-        <span
-          className={[
-            'absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white',
-            story.mediaType === 'video' ? 'bg-brand/80' : 'bg-ink/60',
-          ].join(' ')}
-        >
-          {story.mediaType === 'video' ? '▶ Vídeo' : '🖼 Imagem'}
-        </span>
-      </div>
-
-      <div className="space-y-2 p-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[10px] font-bold text-brand">
-            {story.account.displayName.charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[12px] font-semibold text-ink">{story.account.displayName}</p>
-            <p className="text-[10px] text-ink-muted">{formatNumber(story.account.followers)} seguidores</p>
-          </div>
-        </div>
-
-        <p className="text-[11px] text-ink-muted">Sync: {formatDate(story.syncedAt)}</p>
-        {story.expiresAt && (
-          <p className="text-[11px] text-ink-muted">Expira: {formatDate(story.expiresAt)}</p>
-        )}
-
-        {story.transcript && (
-          <div className="rounded-xl border border-ink/[0.06] bg-surface">
-            <button
-              type="button"
-              onClick={() => setTranscriptOpen((o) => !o)}
-              className="flex w-full items-center justify-between px-3 py-2 text-[12px] font-medium text-ink"
-            >
-              <span>Transcrição</span>
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 14 14"
-                fill="none"
-                className={transcriptOpen ? 'rotate-180 transition-transform' : 'transition-transform'}
-              >
-                <path d="M2 5l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            {transcriptOpen && (
-              <p className="select-text border-t border-ink/[0.06] px-3 py-2 text-[11px] leading-relaxed text-ink-muted">
-                {story.transcript}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+function storyPeek(story: InstagramStory): MediaPeekModel {
+  return {
+    title: `${story.account.displayName} · story`,
+    thumbnailUrl: story.thumbnailUrl,
+    videoUrl: story.videoUrl,
+  }
 }
 
 /**
@@ -136,6 +71,7 @@ export function InstagramStoriesPage() {
   const [data, setData] = useState<StoriesResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mediaPeek, setMediaPeek] = useState<MediaPeekModel | null>(null)
 
   useEffect(() => {
     void fetchStories()
@@ -163,8 +99,11 @@ export function InstagramStoriesPage() {
     setPage(1)
   }
 
+  const storiesPaginationAccount = instagramAccounts.find((a) => a.handle === accountId)
+
   return (
     <div className="space-y-8">
+      <MediaPeekModal model={mediaPeek} onClose={() => setMediaPeek(null)} />
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Instagram</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">Stories</h1>
@@ -241,11 +180,7 @@ export function InstagramStoriesPage() {
         )}
 
         {loading ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="animate-pulse rounded-2xl bg-ink/[0.06]" style={{ aspectRatio: '9/16' }} />
-            ))}
-          </div>
+          <div className="h-40 animate-pulse rounded-2xl bg-ink/[0.06]" />
         ) : error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-[14px] text-red-900 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
             <p className="font-semibold">Erro ao carregar stories</p>
@@ -256,35 +191,72 @@ export function InstagramStoriesPage() {
             Nenhum story encontrado para os filtros selecionados.
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {data.data.map((story) => (
-              <StoryCard key={story.id} story={story} />
-            ))}
+          <div className="overflow-hidden rounded-2xl border border-ink/[0.06] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-[13px]">
+                <thead>
+                  <tr className="border-b border-ink/[0.06] bg-surface text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                    <th className="w-14 px-3 py-3">Mídia</th>
+                    <th className="px-4 py-3">Conta</th>
+                    <th className="px-4 py-3">Tipo</th>
+                    <th className="px-4 py-3">Sync</th>
+                    <th className="px-4 py-3">Expira</th>
+                    <th className="px-4 py-3">Transcrição</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.data.map((story) => {
+                    const peek = storyPeek(story)
+                    const canPeek = mediaPeekHasVisual(peek)
+                    return (
+                      <tr key={story.id} className="border-b border-ink/[0.04] last:border-0">
+                        <td className="px-3 py-3 align-middle">
+                          {canPeek ? (
+                            <MediaPeekEyeButton onClick={() => setMediaPeek(peek)} />
+                          ) : (
+                            <span className="inline-flex h-9 w-9 items-center justify-center text-ink-subtle">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-ink">{story.account.displayName}</p>
+                          <p className="text-[11px] text-ink-muted">{formatNumber(story.account.followers)} seg.</p>
+                        </td>
+                        <td className="px-4 py-3 text-ink-muted">{story.mediaType === 'video' ? 'Vídeo' : 'Imagem'}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{formatDate(story.syncedAt)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
+                          {story.expiresAt ? formatDate(story.expiresAt) : '—'}
+                        </td>
+                        <td className="max-w-[220px] px-4 py-3">
+                          {story.transcript ? (
+                            <details className="text-[12px]">
+                              <summary className="cursor-pointer text-brand">Ver</summary>
+                              <p className="mt-1 max-h-28 overflow-y-auto text-ink-muted">{story.transcript}</p>
+                            </details>
+                          ) : (
+                            <span className="text-ink-subtle">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
-        {data && data.pages > 1 && (
-          <div className="mt-6 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="rounded-full border border-ink/[0.1] px-4 py-2 text-[14px] font-medium text-ink hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Anterior
-            </button>
-            <span className="text-[13px] text-ink-muted">
-              Página {page} de {data.pages} · {data.total.toLocaleString('pt-BR')} stories
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(data.pages, p + 1))}
-              disabled={page >= data.pages}
-              className="rounded-full border border-ink/[0.1] px-4 py-2 text-[14px] font-medium text-ink hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Próxima
-            </button>
-          </div>
+        {data && (
+          <PaginationWithChannel
+            page={page}
+            pages={data.pages}
+            total={data.total}
+            countLabel="stories"
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(data.pages, p + 1))}
+            platform="instagram"
+            channelImageUrl={storiesPaginationAccount?.profilePicS3Url}
+            channelTitle={storiesPaginationAccount ? `@${storiesPaginationAccount.handle}` : undefined}
+          />
         )}
       </section>
     </div>

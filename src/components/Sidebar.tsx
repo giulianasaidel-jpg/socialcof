@@ -18,6 +18,8 @@ const navGroups: NavGroup[] = [
     label: 'Design templates',
     items: [
       { to: '/twitter-posts', label: 'Twitter-like posts' },
+      { to: '/story-replies', label: 'Story Replies (Caixinha)' },
+      { to: '/image-posts', label: 'Image Posts' },
     ],
   },
 ]

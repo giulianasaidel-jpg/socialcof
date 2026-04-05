@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { MediaPeekEyeButton, MediaPeekModal } from '../components/MediaPeek'
+import type { MediaPeekModel } from '../lib/mediaPeek'
+import { mediaPeekHasPreview } from '../lib/mediaPeek'
 import { api } from '../lib/api'
 
 type NewsCategory =
@@ -129,8 +132,10 @@ export function MedicalNewsPage() {
   const [category, setCategory] = useState<NewsCategory | null>(null)
   const [language, setLanguage] = useState<NewsLanguage | null>(null)
   const [specialty, setSpecialty] = useState<NewsSpecialty | null>(null)
+  const [mediaPeek, setMediaPeek] = useState<MediaPeekModel | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag before fetch
     setLoading(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
     api
@@ -160,6 +165,7 @@ export function MedicalNewsPage() {
 
   return (
     <div className="pb-16">
+      <MediaPeekModal model={mediaPeek} onClose={() => setMediaPeek(null)} />
       <h1 className="mb-4 text-xl font-bold tracking-tight text-ink">Atualizações Sites</h1>
 
       <FilterTabs
@@ -179,9 +185,9 @@ export function MedicalNewsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-card shadow-sm">
             {items.map((item) => (
-              <NewsCard key={item.id} item={item} />
+              <NewsListRow key={item.id} item={item} onPeek={setMediaPeek} />
             ))}
           </div>
           {totalPages > 1 && (
@@ -388,257 +394,120 @@ function TabPill({
   )
 }
 
-function NewsCard({ item }: { item: MedicalNewsItem }) {
+function NewsListRow({
+  item,
+  onPeek,
+}: {
+  item: MedicalNewsItem
+  onPeek: (m: MediaPeekModel) => void
+}) {
   const navigate = useNavigate()
-  const [modalOpen, setModalOpen] = useState(false)
   const meta = CATEGORY_META[item.category] ?? FALLBACK_META
   const date = new Date(item.publishedAt)
   const timeAgo = formatDistanceToNow(date, { addSuffix: false, locale: ptBR })
   const publishedDate = format(date, "d 'de' MMM. yyyy", { locale: ptBR })
-  const isAiSummary = item.wordCount !== null
+  const peekModel: MediaPeekModel = {
+    title: item.title,
+    textBody: item.summary
+      ? `${item.wordCount !== null ? '✦ Resumo por IA\n\n' : ''}${item.summary}`
+      : null,
+  }
+  const showEye = mediaPeekHasPreview(peekModel)
 
   return (
-    <>
-      <article className="relative flex flex-col overflow-hidden rounded-2xl border border-ink/[0.08] bg-card shadow-sm transition-shadow hover:shadow-md">
-        <div className="h-[3px] w-full shrink-0" style={{ backgroundColor: meta.color }} />
-
-        <div className="flex flex-1 flex-col gap-3 p-4">
-          <div className="flex items-center gap-2.5">
-            <SourceAvatar source={item.source} category={item.category} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] font-bold text-ink">{item.source}</p>
-              <p className="text-[12px] text-ink-muted">
-                {timeAgo}
-                <span className="mx-1 opacity-40">·</span>
-                <time dateTime={item.publishedAt}>{publishedDate}</time>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            <span
-              className={[
-                'rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                SPECIALTY_COLORS[item.specialty],
-              ].join(' ')}
-            >
-              {SPECIALTY_LABELS[item.specialty]}
-            </span>
-            <span
-              className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
-              style={{ backgroundColor: meta.color }}
-            >
-              {meta.label}
-            </span>
-            <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[11px] font-semibold text-ink-muted dark:bg-white/[0.08]">
-              {item.language.toUpperCase()}
-            </span>
-          </div>
-
-          <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-ink">
-            {item.title}
-          </h3>
-
-          {item.summary && (
-            <div className="flex-1">
-              {isAiSummary && (
-                <p className="mb-1 flex items-center gap-1 text-[11px] font-medium text-ink-muted/60">
-                  <span aria-hidden>✦</span>
-                  <span>Resumo por IA</span>
-                </p>
-              )}
-              <p className="line-clamp-4 text-[13px] leading-relaxed text-ink-muted">
-                {item.summary}
-              </p>
-              {isAiSummary && (
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(true)}
-                  className="mt-1.5 text-[12px] font-medium text-[#1d9bf0] hover:underline"
-                >
-                  Ver resumo completo
-                </button>
-              )}
-            </div>
-          )}
-
-          {item.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {item.tags.slice(0, 4).map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-ink/[0.05] px-2 py-0.5 text-[11px] text-ink-muted dark:bg-white/[0.05]"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div className="flex flex-wrap items-center gap-x-1.5 text-[12px] text-ink-muted">
-              {item.author && <span>por {item.author}</span>}
-              {item.author && item.wordCount !== null && <span>·</span>}
-              {item.wordCount !== null && (
-                <span>{item.wordCount.toLocaleString('pt-BR')} palavras</span>
-              )}
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate('/twitter-posts', {
-                    state: {
-                      generateFromNews: {
-                        id: item.id,
-                        title: item.title,
-                        summary: item.summary,
-                        source: item.source,
-                        publishedAt: item.publishedAt,
-                      },
-                    },
-                  })
-                }
-                className="text-[13px] font-semibold text-ink hover:underline"
-              >
-                Gerar Twitter Post
-              </button>
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[13px] font-semibold text-[#1d9bf0] hover:underline"
-              >
-                Ler artigo ↗
-              </a>
-            </div>
+    <article className="flex flex-wrap items-start gap-3 border-b border-ink/[0.06] px-4 py-4 last:border-0">
+      <div className="flex w-10 shrink-0 justify-center pt-0.5">
+        {showEye ? (
+          <MediaPeekEyeButton
+            label="Ver resumo / pré-visualização"
+            onClick={() => onPeek(peekModel)}
+          />
+        ) : (
+          <span className="text-[11px] text-ink-subtle">—</span>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <SourceAvatar source={item.source} category={item.category} />
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-bold text-ink">{item.source}</p>
+            <p className="text-[11px] text-ink-muted">
+              {timeAgo}
+              <span className="mx-1 opacity-40">·</span>
+              <time dateTime={item.publishedAt}>{publishedDate}</time>
+            </p>
           </div>
         </div>
-      </article>
-
-      {modalOpen && (
-        <SummaryModal item={item} publishedDate={publishedDate} onClose={() => setModalOpen(false)} />
-      )}
-    </>
-  )
-}
-
-/**
- * Modal displaying the full AI-generated summary and article metadata.
- */
-function SummaryModal({
-  item,
-  publishedDate,
-  onClose,
-}: {
-  item: MedicalNewsItem
-  publishedDate: string
-  onClose: () => void
-}) {
-  const meta = CATEGORY_META[item.category] ?? FALLBACK_META
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-ink/40 backdrop-blur-[3px]" onClick={onClose} />
-      <div className="relative z-10 flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-card shadow-2xl">
-        <div className="h-[4px] w-full shrink-0" style={{ backgroundColor: meta.color }} />
-
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div className="flex items-center gap-2.5">
-              <SourceAvatar source={item.source} category={item.category} />
-              <div>
-                <p className="text-[14px] font-bold text-ink">{item.source}</p>
-                <p className="text-[12px] text-ink-muted">
-                  <time dateTime={item.publishedAt}>{publishedDate}</time>
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fechar"
-              className="shrink-0 rounded-full p-1.5 text-ink-muted transition-colors hover:bg-ink/[0.06] hover:text-ink"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="mb-1 flex flex-wrap gap-1.5">
-            <span
-              className={[
-                'rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                SPECIALTY_COLORS[item.specialty],
-              ].join(' ')}
-            >
-              {SPECIALTY_LABELS[item.specialty]}
-            </span>
-            <span
-              className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
-              style={{ backgroundColor: meta.color }}
-            >
-              {meta.label}
-            </span>
-            <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
-              {item.language.toUpperCase()}
-            </span>
-          </div>
-
-          <h2 className="mt-3 text-[17px] font-bold leading-snug text-ink">{item.title}</h2>
-
-          {item.summary && (
-            <div className="mt-4 rounded-2xl bg-ink/[0.03] p-4 dark:bg-white/[0.04]">
-              <p className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-ink-muted/70">
-                <span aria-hidden>✦</span>
-                Resumo gerado por IA (GPT-4o-mini)
-              </p>
-              <p className="text-[14px] leading-relaxed text-ink">{item.summary}</p>
-            </div>
-          )}
-
-          {item.tags.length > 0 && (
-            <div className="mt-4">
-              <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-ink-muted">
-                Tags
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {item.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-ink/[0.06] px-2.5 py-0.5 text-[12px] text-ink-muted"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {(item.author || item.wordCount !== null) && (
-            <div className="mt-4 flex flex-wrap items-center gap-x-2 text-[13px] text-ink-muted">
-              {item.author && <span>por {item.author}</span>}
-              {item.author && item.wordCount !== null && <span>·</span>}
-              {item.wordCount !== null && (
-                <span>{item.wordCount.toLocaleString('pt-BR')} palavras no artigo original</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-ink/[0.08] px-6 py-4">
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d9bf0] px-4 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span
+            className={[
+              'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+              SPECIALTY_COLORS[item.specialty],
+            ].join(' ')}
           >
-            Ler artigo completo ↗
-          </a>
+            {SPECIALTY_LABELS[item.specialty]}
+          </span>
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+            style={{ backgroundColor: meta.color }}
+          >
+            {meta.label}
+          </span>
+          <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-semibold text-ink-muted dark:bg-white/[0.08]">
+            {item.language.toUpperCase()}
+          </span>
+        </div>
+        <h3 className="mt-2 text-[15px] font-bold leading-snug text-ink">{item.title}</h3>
+        {item.tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {item.tags.slice(0, 5).map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-ink/[0.05] px-2 py-0.5 text-[10px] text-ink-muted dark:bg-white/[0.05]"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 text-[11px] text-ink-muted">
+          {item.author && <span>por {item.author}</span>}
+          {item.author && item.wordCount !== null && <span>·</span>}
+          {item.wordCount !== null && (
+            <span>{item.wordCount.toLocaleString('pt-BR')} palavras</span>
+          )}
         </div>
       </div>
-    </div>
+      <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+        <button
+          type="button"
+          onClick={() =>
+            navigate('/twitter-posts', {
+              state: {
+                generateFromNews: {
+                  id: item.id,
+                  title: item.title,
+                  summary: item.summary,
+                  source: item.source,
+                  publishedAt: item.publishedAt,
+                },
+              },
+            })
+          }
+          className="text-left text-[12px] font-semibold text-ink hover:underline sm:text-right"
+        >
+          Gerar Twitter Post
+        </button>
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[12px] font-semibold text-[#1d9bf0] hover:underline"
+        >
+          Ler artigo ↗
+        </a>
+      </div>
+    </article>
   )
 }
 
@@ -663,35 +532,17 @@ function SourceAvatar({ source, category }: { source: string; category: NewsCate
 
 function FeedSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-card shadow-sm">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-card shadow-sm">
-          <div className="h-[3px] w-full animate-pulse bg-ink/[0.08]" />
-          <div className="flex flex-col gap-3 p-4">
-            <div className="flex items-center gap-2.5">
+        <div key={i} className="flex gap-3 border-b border-ink/[0.06] px-4 py-4 last:border-0">
+          <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-ink/[0.08]" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex items-center gap-2">
               <div className="h-8 w-8 animate-pulse rounded-xl bg-ink/[0.08]" />
-              <div className="flex-1 space-y-1.5">
-                <div className="h-3.5 w-32 animate-pulse rounded bg-ink/[0.08]" />
-                <div className="h-3 w-16 animate-pulse rounded bg-ink/[0.08]" />
-              </div>
+              <div className="h-3.5 w-36 animate-pulse rounded bg-ink/[0.08]" />
             </div>
-            <div className="flex gap-1.5">
-              <div className="h-5 w-20 animate-pulse rounded-full bg-ink/[0.08]" />
-              <div className="h-5 w-16 animate-pulse rounded-full bg-ink/[0.08]" />
-            </div>
-            <div className="space-y-1.5">
-              <div className="h-4 w-full animate-pulse rounded bg-ink/[0.08]" />
-              <div className="h-4 w-4/5 animate-pulse rounded bg-ink/[0.08]" />
-            </div>
-            <div className="space-y-1.5">
-              <div className="h-3.5 w-full animate-pulse rounded bg-ink/[0.08]" />
-              <div className="h-3.5 w-full animate-pulse rounded bg-ink/[0.08]" />
-              <div className="h-3.5 w-3/5 animate-pulse rounded bg-ink/[0.08]" />
-            </div>
-            <div className="flex justify-between pt-1">
-              <div className="h-3.5 w-24 animate-pulse rounded bg-ink/[0.08]" />
-              <div className="h-3.5 w-20 animate-pulse rounded bg-ink/[0.08]" />
-            </div>
+            <div className="h-4 w-full animate-pulse rounded bg-ink/[0.08]" />
+            <div className="h-4 w-[66%] animate-pulse rounded bg-ink/[0.08]" />
           </div>
         </div>
       ))}
